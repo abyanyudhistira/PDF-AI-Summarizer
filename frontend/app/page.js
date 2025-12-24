@@ -1,6 +1,28 @@
 "use client";
 
 import { useState } from "react";
+import ReactMarkdown from "react-markdown";
+
+const MarkdownComponents = {
+  ul: ({ node, ...props }) => (
+    <ul className="list-disc list-inside space-y-1 ml-4" {...props} />
+  ),
+  ol: ({ node, ...props }) => (
+    <ol className="list-decimal list-inside space-y-1 ml-4" {...props} />
+  ),
+  li: ({ node, ...props }) => <li className="mb-1" {...props} />,
+  h1: ({ node, ...props }) => (
+    <h1 className="text-xl font-bold mt-4 mb-2" {...props} />
+  ),
+  h2: ({ node, ...props }) => (
+    <h2 className="text-lg font-bold mt-3 mb-2" {...props} />
+  ),
+  h3: ({ node, ...props }) => (
+    <h3 className="text-md font-bold mt-2 mb-1" {...props} />
+  ),
+  strong: ({ node, ...props }) => <strong className="font-semibold" {...props} />,
+  p: ({ node, ...props }) => <p className="mb-2" {...props} />,
+};
 
 export default function Home() {
   const backendUrl =
@@ -8,7 +30,7 @@ export default function Home() {
 
   const [files, setFiles] = useState([]);
   const [file, setFile] = useState(null);
-  const [mode, setMode] = useState("simple"); // simple | structured | multi | qa
+  const [mode, setMode] = useState("simple");
   const [summary, setSummary] = useState("");
   const [structured, setStructured] = useState(null);
   const [multiResult, setMultiResult] = useState(null);
@@ -67,29 +89,21 @@ export default function Home() {
     setMultiResult(null);
     setQaAnswer("");
 
-    if (mode === "multi") {
-      if (!files.length) {
-        setError("Pilih minimal satu PDF.");
-        return;
-      }
-      await summarizeMulti();
-      return;
-    }
-
-    if (!file) {
-      setError("Pilih file PDF terlebih dahulu.");
+    if (!files.length) {
+      setError("Pilih minimal satu PDF.");
       return;
     }
 
     if (mode === "simple") await summarizeSimple();
     else if (mode === "structured") await summarizeStructured();
+    else if (mode === "multi") await summarizeMulti();
     else if (mode === "qa") await askQuestion();
   };
 
   const summarizeSimple = async () => {
     setLoading(true);
     const formData = new FormData();
-    formData.append("file", file);
+    files.forEach((f) => formData.append("files", f, f.name));
     try {
       const response = await fetch(`${backendUrl}/summarize`, {
         method: "POST",
@@ -111,7 +125,7 @@ export default function Home() {
   const summarizeStructured = async () => {
     setLoading(true);
     const formData = new FormData();
-    formData.append("file", file);
+    files.forEach((f) => formData.append("files", f, f.name));
     try {
       const response = await fetch(`${backendUrl}/summarize-structured`, {
         method: "POST",
@@ -159,7 +173,7 @@ export default function Home() {
     }
     setLoading(true);
     const formData = new FormData();
-    formData.append("file", file);
+    files.forEach((f) => formData.append("files", f, f.name));
     formData.append("question", qaQuestion);
     try {
       const response = await fetch(`${backendUrl}/qa`, {
@@ -231,11 +245,11 @@ export default function Home() {
         </div>
 
         <div className="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10">
-          <div className="space-y-6">
-            <div>
-              <label className="block text-sm font-medium text-black">
-                Upload PDF
-              </label>
+            <div className="space-y-6">
+              <div>
+                <label className="block text-sm font-medium text-black">
+                  Upload PDF
+                </label>
               <label
                 htmlFor="file-upload"
                 className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-md hover:border-indigo-500 transition-colors cursor-pointer w-full"
@@ -298,12 +312,11 @@ export default function Home() {
                       />
                     </div>
                   </div>
-                  <p className="text-xs text-black">PDF sampai 10MB</p>
                 </div>
-              </label>
-            </div>
+                </label>
+              </div>
 
-            {files.length > 0 && (
+              {files.length > 0 && (
               <div className="text-sm text-black">
                 Dipilih:
                 <ul className="mt-1 list-disc list-inside">
@@ -312,7 +325,7 @@ export default function Home() {
                       {f.name}
                     </li>
                   ))}
-                </ul>
+                  </ul>
               </div>
             )}
 
@@ -327,9 +340,9 @@ export default function Home() {
               >
                 <option value="simple">Ringkasan sederhana</option>
                 <option value="structured">Executive &amp; bullets</option>
-                <option value="multi">Multi PDF</option>
+                <option value="multi">Multi PDF (per-file + gabungan)</option>
                 <option value="qa">Q&amp;A</option>
-              </select>
+                </select>
             </div>
 
             {mode === "qa" && (
@@ -343,7 +356,7 @@ export default function Home() {
                   onChange={(e) => setQaQuestion(e.target.value)}
                   placeholder="Tulis pertanyaan berdasarkan isi PDF"
                   className="mt-1 w-full border rounded-md px-3 py-2 text-sm"
-                />
+                  />
               </div>
             )}
 
@@ -391,7 +404,7 @@ export default function Home() {
                   "Ringkas Multi PDF"
                 ) : (
                   "Jawab Q&A"
-                )}
+                  )}
               </button>
             </div>
           </div>
@@ -502,8 +515,10 @@ export default function Home() {
               <div className="mb-3 text-sm text-black">
                 ~{wordCount} words
               </div>
-              <div className="text-black leading-relaxed whitespace-pre-line">
-                {summary}
+              <div className="text-black leading-relaxed">
+                <ReactMarkdown components={MarkdownComponents}>
+                  {summary}
+                </ReactMarkdown>
               </div>
             </div>
           </div>
@@ -513,7 +528,7 @@ export default function Home() {
           <div className="bg-white shadow-lg sm:rounded-xl overflow-hidden border border-gray-200">
             <div className="flex items-center justify-between px-4 py-4 sm:px-6 bg-indigo-600 text-white">
               <div>
-                <h3 className="text-lg font-semibold">Executive Summary</h3>
+                <h3 className="text-lg font-semibold text-black">Executive Summary</h3>
                 <p className="text-xs opacity-80">{structured.filename}</p>
               </div>
               <div className="flex items-center gap-2">
@@ -563,19 +578,19 @@ export default function Home() {
               <div className="mt-6 flex gap-2">
                 <button
                   onClick={() => exportData("json")}
-                  className="px-3 py-2 bg-gray-800 text-white rounded-md text-sm"
+                  className="px-3 py-2 bg-gray-800 text-white rounded-md text-sm cursor-pointer"
                 >
                   Export JSON
                 </button>
                 <button
                   onClick={() => exportData("txt")}
-                  className="px-3 py-2 bg-gray-800 text-white rounded-md text-sm"
+                  className="px-3 py-2 bg-gray-800 text-white rounded-md text-sm cursor-pointer"
                 >
                   Export TXT
                 </button>
                 <button
                   onClick={() => exportData("csv")}
-                  className="px-3 py-2 bg-gray-800 text-white rounded-md text-sm"
+                  className="px-3 py-2 bg-gray-800 text-white rounded-md text-sm cursor-pointer"
                 >
                   Export CSV
                 </button>
@@ -595,7 +610,7 @@ export default function Home() {
                   <h3 className="text-lg font-semibold">{item.filename}</h3>
                 </div>
                 <div className="px-4 py-5 sm:p-6">
-                  <h4 className="font-semibold mb-2">Executive Summary</h4>
+                  <h4 className="font-semibold mb-2 text-black">Executive Summary</h4>
                   <p className="whitespace-pre-line text-black">
                     {item.executive_summary}
                   </p>
@@ -609,7 +624,7 @@ export default function Home() {
                       </ul>
                     </div>
                     <div>
-                      <h4 className="font-semibold mb-2">Highlights</h4>
+                      <h4 className="font-semibold mb-2 text-black">Highlights</h4>
                       <ul className="list-disc list-inside space-y-1 text-black">
                         {(item.highlights || []).map((h, i) => (
                           <li key={i} className="italic">
@@ -627,9 +642,11 @@ export default function Home() {
                 <h3 className="text-lg font-semibold">Ringkasan Gabungan</h3>
               </div>
               <div className="px-4 py-5 sm:p-6">
-                <p className="whitespace-pre-line text-black">
-                  {multiResult.combined_summary}
-                </p>
+                <div className="text-black leading-relaxed">
+                  <ReactMarkdown components={MarkdownComponents}>
+                    {multiResult.combined_summary}
+                  </ReactMarkdown>
+                </div>
               </div>
             </div>
           </div>

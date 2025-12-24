@@ -12,15 +12,13 @@ from typing import List, Optional
 import re
 import json
 
-# Load environment variables
 load_dotenv()
 
 app = FastAPI()
 
-# Configure CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allow all origins for development
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -61,8 +59,7 @@ def extract_text_from_pdf(file_stream):
 
 def summarize_text(text: str) -> str:
     try:
-        truncated_text = text[:30000] # Increased limit for Gemini Flash (it has large context)
-        
+        truncated_text = text[:30000]
         prompt = f"""
         Please summarize the following document in clear, concise paragraphs.
         Respond strictly in the same language as the document's dominant language.
@@ -72,13 +69,28 @@ def summarize_text(text: str) -> str:
         Document content:
         {truncated_text}
         """
-
         response = gemini_model.generate_content(prompt)
         return response.text
-            
     except Exception as e:
-         print(f"AI Error (gemini): {e}")
-         return f"Error generating summary: {str(e)}"
+        print(f"AI Error: {e}")
+        return f"Error generating summary: {str(e)}"
+
+def summarize_hierarchical(text: str) -> str:
+    try:
+        truncated_text = text[:30000]
+        prompt = f"""
+        Please provide a hierarchical summary of the following document. 
+        Structure the summary with main topics, subtopics, and key details using nested bullet points or a clear outline format. 
+        Respond strictly in the same language as the document's dominant language.
+        
+        Document content:
+        {truncated_text}
+        """
+        response = gemini_model.generate_content(prompt)
+        return response.text
+    except Exception as e:
+        print(f"AI Error: {e}")
+        return f"Error generating hierarchical summary: {str(e)}"
 
 def _extract_json(text: str) -> Optional[dict]:
     try:
@@ -98,9 +110,49 @@ def summarize_structured(text: str) -> StructuredSummaryResponse:
     You are a professional analyst. Read the document and respond ONLY as JSON.
     Keys: executive_summary (string), bullets (array of strings 5-10 items),
     highlights (array of the 5 most important sentences verbatim).
-    Preserve the document's original language and terminology.
+    Respond strictly in the same language as the document's dominant language.
+    Do not translate to another language; preserve domain terminology.
 
     Document:
+    {truncated_text}
+    """
+    try:
+        response = gemini_model.generate_content(prompt)
+        data = _extract_json(response.text or "")
+        if not data:
+            data = {
+                "executive_summary": "Summary not available",
+                "bullets": [],
+                "highlights": []
+            }
+        return StructuredSummaryResponse(
+            filename="",
+            executive_summary=data.get("executive_summary", ""),
+            bullets=list(map(str, data.get("bullets", []))),
+            highlights=list(map(str, data.get("highlights", []))),
+            provider="gemini",
+        )
+    except Exception as e:
+        return StructuredSummaryResponse(
+            filename="",
+            executive_summary=f"Error generating summary: {str(e)}",
+            bullets=[],
+            highlights=[],
+            provider="gemini",
+        )
+
+def summarize_structured_hierarchical(text: str) -> StructuredSummaryResponse:
+    truncated_text = text[:30000]
+    prompt = f"""
+    You are a professional analyst. Read the multiple documents and respond ONLY as JSON.
+    Use a hierarchical approach to organize information from multiple documents.
+    Keys: executive_summary (string with hierarchical structure using bullet points and indentation), 
+    bullets (array of strings 5-8 items organized by document/topic with hierarchical structure),
+    highlights (array of the 5 most important sentences verbatim from across all documents).
+    Respond strictly in the same language as the document's dominant language.
+    Do not translate to another language; preserve domain terminology.
+
+    Documents:
     {truncated_text}
     """
     try:
@@ -147,40 +199,99 @@ def highlight_sentences(text: str, top_k: int = 5) -> List[str]:
     return [s for _, s in scores[:top_k]]
 
 @app.post("/summarize", response_model=SummaryResponse)
-async def summarize_pdf(file: UploadFile = File(...)):
-    if not file.filename.endswith(".pdf"):
-        raise HTTPException(status_code=400, detail="File must be a PDF")
+async def summarize_pdf(files: List[UploadFile] = File(...)):
+    all_texts = []
+    filenames = []
     
-    try:
-        content = await file.read()
-        file_stream = io.BytesIO(content)
-        text = extract_text_from_pdf(file_stream)
+    for file in files:
+        if not file.filename.endswith(".pdf"):
+            raise HTTPException(status_code=400, detail=f"{file.filename} must be a PDF")
         
-        if not text.strip():
-             raise HTTPException(status_code=400, detail="Could not extract text from PDF.")
-
-        summary = summarize_text(text)
+        try:
+            content = await file.read()
+            file_stream = io.BytesIO(content)
+            text = extract_text_from_pdf(file_stream)
+            
+            if not text.strip():
+                raise HTTPException(status_code=400, detail=f"Could not extract text from {file.filename}.")
+            
+            all_texts.append(text)
+            filenames.append(file.filename)
         
-        return SummaryResponse(filename=file.filename, summary=summary, provider="gemini")
+        except Exception as e:
+            if isinstance(e, HTTPException):
+                raise e
+            raise HTTPException(status_code=500, detail=str(e))
     
-    except Exception as e:
-        if isinstance(e, HTTPException):
-            raise e
-        raise HTTPException(status_code=500, detail=str(e))
+    combined_text = "\n\n--- Next Document ---\n\n".join(all_texts)
+    
+    if len(files) > 1:
+        summary = summarize_hierarchical(combined_text)
+    else:
+        summary = summarize_text(combined_text)
+    
+    if len(filenames) == 1:
+        display_name = filenames[0]
+    else:
+        display_name = f"{len(filenames)} PDFs: {', '.join(filenames)}"
+    
+    return SummaryResponse(filename=display_name, summary=summary, provider="gemini")
 
 @app.post("/summarize-structured", response_model=StructuredSummaryResponse)
-async def summarize_pdf_structured(file: UploadFile = File(...)):
-    if not file.filename.endswith(".pdf"):
-        raise HTTPException(status_code=400, detail="File must be a PDF")
-    content = await file.read()
-    text = extract_text_from_pdf(io.BytesIO(content))
-    if not text.strip():
-        raise HTTPException(status_code=400, detail="Could not extract text from PDF.")
-    result = summarize_structured(text)
-    result.filename = file.filename
-    if not result.highlights or (len(result.highlights) < 3 and text):
-        result.highlights = highlight_sentences(text, top_k=5)
+async def summarize_pdf_structured(files: List[UploadFile] = File(...)):
+    all_texts = []
+    filenames = []
+    
+    for file in files:
+        if not file.filename.endswith(".pdf"):
+            raise HTTPException(status_code=400, detail=f"{file.filename} must be a PDF")
+        content = await file.read()
+        text = extract_text_from_pdf(io.BytesIO(content))
+        if not text.strip():
+            raise HTTPException(status_code=400, detail=f"Could not extract text from {file.filename}.")
+        all_texts.append(text)
+        filenames.append(file.filename)
+    
+    combined_text = "\n\n--- Next Document ---\n\n".join(all_texts)
+    
+    if len(files) > 1:
+        result = summarize_structured_hierarchical(combined_text)
+    else:
+        result = summarize_structured(combined_text)
+    
+    if len(filenames) == 1:
+        result.filename = filenames[0]
+    else:
+        result.filename = f"{len(filenames)} PDFs: {', '.join(filenames)}"
+    
+    if not result.highlights or (len(result.highlights) < 3 and combined_text):
+        result.highlights = highlight_sentences(combined_text, top_k=5)
     return result
+
+@app.post("/summarize-hierarchical", response_model=SummaryResponse)
+async def summarize_pdf_hierarchical(files: List[UploadFile] = File(...)):
+    all_texts = []
+    filenames = []
+    
+    for file in files:
+        if not file.filename.endswith(".pdf"):
+            raise HTTPException(status_code=400, detail=f"{file.filename} must be a PDF")
+        content = await file.read()
+        text = extract_text_from_pdf(io.BytesIO(content))
+        if not text.strip():
+            raise HTTPException(status_code=400, detail=f"Could not extract text from {file.filename}.")
+        all_texts.append(text)
+        filenames.append(file.filename)
+    
+    combined_text = "\n\n--- Next Document ---\n\n".join(all_texts)
+    summary = summarize_hierarchical(combined_text)
+    
+    if len(filenames) == 1:
+        display_name = filenames[0]
+    else:
+        display_name = f"{len(filenames)} PDFs: {', '.join(filenames)}"
+    
+    return SummaryResponse(filename=display_name, summary=summary, provider="gemini")
 
 @app.post("/summarize-multi", response_model=MultiSummaryResponse)
 async def summarize_multi(files: List[UploadFile] = File(...)):
@@ -192,12 +303,23 @@ async def summarize_multi(files: List[UploadFile] = File(...)):
         content = await f.read()
         text = extract_text_from_pdf(io.BytesIO(content))
         combined_texts.append(text)
-        res = summarize_structured(text)
+        
+        if len(files) > 1:
+            res = summarize_structured_hierarchical(text)
+        else:
+            res = summarize_structured(text)
+        
         res.filename = f.filename
         if not res.highlights or (len(res.highlights) < 3 and text):
             res.highlights = highlight_sentences(text, top_k=5)
         items.append(res)
-    combined_summary = summarize_text("\n\n".join(combined_texts))
+    
+    combined_text = "\n\n".join(combined_texts)
+    
+    if len(files) > 1:
+        combined_summary = summarize_hierarchical(combined_text)
+    else:
+        combined_summary = summarize_text(combined_text)
     return MultiSummaryResponse(items=items, combined_summary=combined_summary, provider="gemini")
 
 class QAResponse(BaseModel):
@@ -205,20 +327,28 @@ class QAResponse(BaseModel):
     provider: str
 
 @app.post("/qa", response_model=QAResponse)
-async def qa_pdf(question: str = Form(...), file: UploadFile = File(...)):
-    if not file.filename.endswith(".pdf"):
-        raise HTTPException(status_code=400, detail="File must be a PDF")
-    content = await file.read()
-    text = extract_text_from_pdf(io.BytesIO(content))
-    if not text.strip():
-        raise HTTPException(status_code=400, detail="Could not extract text from PDF.")
+async def qa_pdf(question: str = Form(...), files: List[UploadFile] = File(...)):
+    all_texts = []
+    
+    for file in files:
+        if not file.filename.endswith(".pdf"):
+            raise HTTPException(status_code=400, detail=f"{file.filename} must be a PDF")
+        content = await file.read()
+        text = extract_text_from_pdf(io.BytesIO(content))
+        if not text.strip():
+            raise HTTPException(status_code=400, detail=f"Could not extract text from {file.filename}.")
+        all_texts.append(text)
+    
+    combined_text = "\n\n--- Next Document ---\n\n".join(all_texts)
+    
     prompt = f"""
-    Answer the question based ONLY on the document below.
-    Respond in the same language as the document.
+    Answer the question based ONLY on the document(s) below.
+    Respond strictly in the same language as the document's dominant language.
+    Do not translate to another language; preserve domain terminology.
     Provide a concise, factual answer; if uncertain, say you cannot find it.
 
-    Document:
-    {text[:30000]}
+    Document(s):
+    {combined_text[:30000]}
 
     Question:
     {question}
@@ -242,6 +372,7 @@ async def export_result(req: ExportRequest):
     fmt = req.format.lower()
     if fmt not in {"json", "txt", "csv"}:
         raise HTTPException(status_code=400, detail="Unsupported format")
+    
     if fmt == "json":
         payload = {
             "filename": req.filename,
@@ -256,6 +387,7 @@ async def export_result(req: ExportRequest):
             media_type="application/json",
             headers={"Content-Disposition": f'attachment; filename="{req.filename}.json"'},
         )
+    
     if fmt == "txt":
         lines = []
         lines.append(f"Filename: {req.filename}")
@@ -285,6 +417,7 @@ async def export_result(req: ExportRequest):
             media_type="text/plain; charset=utf-8",
             headers={"Content-Disposition": f'attachment; filename="{req.filename}.txt"'},
         )
+    
     if fmt == "csv":
         rows = ["type,text"]
         for b in req.bullets:
@@ -302,5 +435,6 @@ async def export_result(req: ExportRequest):
             media_type="text/csv; charset=utf-8",
             headers={"Content-Disposition": f'attachment; filename="{req.filename}.csv"'},
         )
+
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
