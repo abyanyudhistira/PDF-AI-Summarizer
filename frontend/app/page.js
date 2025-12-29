@@ -40,10 +40,7 @@ export default function Home() {
   const [pendingFiles, setPendingFiles] = useState([]);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [showConfigMenu, setShowConfigMenu] = useState(false);
-  const [outputType, setOutputType] = useState("notes");
   const [language, setLanguage] = useState("english");
-  const [noteLength, setNoteLength] = useState("in-depth");
-  const [noteStructure, setNoteStructure] = useState("outline");
   const [pageRange, setPageRange] = useState("all");
   const [customPages, setCustomPages] = useState("");
   const [mode, setMode] = useState("simple");
@@ -160,6 +157,11 @@ export default function Home() {
     
     // Add selected language to formData
     formData.append("language", language);
+    
+    // Add page range to formData
+    if (pageRange === "custom" && customPages.trim()) {
+      formData.append("pages", customPages.trim());
+    }
 
     try {
       const endpoints = {
@@ -720,74 +722,6 @@ export default function Home() {
                   <option value="french">French</option>
                   <option value="german">German</option>
                 </select>
-              </div>
-
-              {/* Note Length */}
-              <div>
-                <label className="text-white text-lg font-semibold mb-3 block">
-                  How long should the note be?
-                </label>
-                <div className="grid grid-cols-2 gap-4">
-                  <button
-                    onClick={() => setNoteLength("in-depth")}
-                    className={`px-6 py-3 rounded-xl border-2 font-medium transition-all ${
-                      noteLength === "in-depth"
-                        ? "border-purple-500 bg-purple-500/10 text-white"
-                        : "border-gray-600 bg-gray-700/50 text-gray-300 hover:border-gray-500"
-                    }`}
-                  >
-                    In-depth Notes
-                  </button>
-                  <button
-                    onClick={() => setNoteLength("concise")}
-                    className={`px-6 py-3 rounded-xl border-2 font-medium transition-all ${
-                      noteLength === "concise"
-                        ? "border-purple-500 bg-purple-500/10 text-white"
-                        : "border-gray-600 bg-gray-700/50 text-gray-300 hover:border-gray-500"
-                    }`}
-                  >
-                    Concise Summary
-                  </button>
-                </div>
-              </div>
-
-              {/* Note Structure */}
-              <div>
-                <label className="text-white text-lg font-semibold mb-3 block">
-                  How would you like your notes to be structured?
-                </label>
-                <div className="grid grid-cols-3 gap-4">
-                  <button
-                    onClick={() => setNoteStructure("outline")}
-                    className={`px-6 py-3 rounded-xl border-2 font-medium transition-all ${
-                      noteStructure === "outline"
-                        ? "border-purple-500 bg-purple-500/10 text-white"
-                        : "border-gray-600 bg-gray-700/50 text-gray-300 hover:border-gray-500"
-                    }`}
-                  >
-                    Outline Format
-                  </button>
-                  <button
-                    onClick={() => setNoteStructure("paragraph")}
-                    className={`px-6 py-3 rounded-xl border-2 font-medium transition-all ${
-                      noteStructure === "paragraph"
-                        ? "border-purple-500 bg-purple-500/10 text-white"
-                        : "border-gray-600 bg-gray-700/50 text-gray-300 hover:border-gray-500"
-                    }`}
-                  >
-                    Paragraph Format
-                  </button>
-                  <button
-                    onClick={() => setNoteStructure("by-page")}
-                    className={`px-6 py-3 rounded-xl border-2 font-medium transition-all ${
-                      noteStructure === "by-page"
-                        ? "border-purple-500 bg-purple-500/10 text-white"
-                        : "border-gray-600 bg-gray-700/50 text-gray-300 hover:border-gray-500"
-                    }`}
-                  >
-                    By file page
-                  </button>
-                </div>
               </div>
 
               {/* Page Range */}

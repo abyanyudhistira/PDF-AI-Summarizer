@@ -86,12 +86,53 @@ def detect_language(text: str) -> str:
         print(f"Language detection error: {e}")
         return "English"
 
-def extract_text_from_pdf(file_stream):
+def parse_page_range(page_range_str: str, total_pages: int) -> List[int]:
+    """Parse page range string like '1-5, 7, 9' into list of page numbers"""
+    if not page_range_str or not page_range_str.strip():
+        return list(range(total_pages))
+    
+    pages = set()
+    parts = page_range_str.split(',')
+    
+    for part in parts:
+        part = part.strip()
+        if '-' in part:
+            # Handle range like "1-5"
+            try:
+                start, end = part.split('-')
+                start = int(start.strip())
+                end = int(end.strip())
+                # Ensure valid range
+                start = max(1, min(start, total_pages))
+                end = max(1, min(end, total_pages))
+                pages.update(range(start - 1, end))  # Convert to 0-indexed
+            except ValueError:
+                continue
+        else:
+            # Handle single page like "7"
+            try:
+                page = int(part)
+                if 1 <= page <= total_pages:
+                    pages.add(page - 1)  # Convert to 0-indexed
+            except ValueError:
+                continue
+    
+    return sorted(list(pages))
+
+def extract_text_from_pdf(file_stream, page_numbers: List[int] = None):
     try:
         reader = PdfReader(file_stream)
+        total_pages = len(reader.pages)
+        
+        # If no specific pages requested, extract all
+        if page_numbers is None:
+            page_numbers = list(range(total_pages))
+        
         text = ""
-        for page in reader.pages:
-            text += page.extract_text() + "\n"
+        for page_num in page_numbers:
+            if 0 <= page_num < total_pages:
+                text += reader.pages[page_num].extract_text() + "\n"
+        
         return text
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Error reading PDF: {str(e)}")
@@ -255,7 +296,7 @@ def highlight_sentences(text: str, top_k: int = 5) -> List[str]:
     return [s for _, s in scores[:top_k]]
 
 @app.post("/summarize", response_model=SummaryResponse)
-async def summarize_pdf(files: List[UploadFile] = File(...), language: str = Form(None)):
+async def summarize_pdf(files: List[UploadFile] = File(...), language: str = Form(None), pages: str = Form(None)):
     all_texts = []
     filenames = []
     
@@ -266,7 +307,16 @@ async def summarize_pdf(files: List[UploadFile] = File(...), language: str = For
         try:
             content = await file.read()
             file_stream = io.BytesIO(content)
-            text = extract_text_from_pdf(file_stream)
+            
+            # Parse page range if provided
+            page_numbers = None
+            if pages:
+                reader = PdfReader(file_stream)
+                total_pages = len(reader.pages)
+                page_numbers = parse_page_range(pages, total_pages)
+                file_stream.seek(0)  # Reset stream position
+            
+            text = extract_text_from_pdf(file_stream, page_numbers)
             
             if not text.strip():
                 raise HTTPException(status_code=400, detail=f"Could not extract text from {file.filename}.")
@@ -288,6 +338,8 @@ async def summarize_pdf(files: List[UploadFile] = File(...), language: str = For
         target_language = detect_language(combined_text)
     
     print(f"Target language: {target_language}")
+    if pages:
+        print(f"Processing pages: {pages}")
     
     if len(files) > 1:
         summary = summarize_hierarchical(combined_text, target_language)
@@ -302,7 +354,7 @@ async def summarize_pdf(files: List[UploadFile] = File(...), language: str = For
     return SummaryResponse(filename=display_name, summary=summary, provider="gemini")
 
 @app.post("/summarize-structured", response_model=StructuredSummaryResponse)
-async def summarize_pdf_structured(files: List[UploadFile] = File(...), language: str = Form(None)):
+async def summarize_pdf_structured(files: List[UploadFile] = File(...), language: str = Form(None), pages: str = Form(None)):
     all_texts = []
     filenames = []
     
@@ -310,7 +362,16 @@ async def summarize_pdf_structured(files: List[UploadFile] = File(...), language
         if not file.filename.endswith(".pdf"):
             raise HTTPException(status_code=400, detail=f"{file.filename} must be a PDF")
         content = await file.read()
-        text = extract_text_from_pdf(io.BytesIO(content))
+        
+        # Parse page range if provided
+        page_numbers = None
+        if pages:
+            file_stream = io.BytesIO(content)
+            reader = PdfReader(file_stream)
+            total_pages = len(reader.pages)
+            page_numbers = parse_page_range(pages, total_pages)
+        
+        text = extract_text_from_pdf(io.BytesIO(content), page_numbers)
         if not text.strip():
             raise HTTPException(status_code=400, detail=f"Could not extract text from {file.filename}.")
         all_texts.append(text)
@@ -325,6 +386,8 @@ async def summarize_pdf_structured(files: List[UploadFile] = File(...), language
         target_language = detect_language(combined_text)
     
     print(f"Target language: {target_language}")
+    if pages:
+        print(f"Processing pages: {pages}")
     
     if len(files) > 1:
         result = summarize_structured_hierarchical(combined_text, target_language)
@@ -341,7 +404,7 @@ async def summarize_pdf_structured(files: List[UploadFile] = File(...), language
     return result
 
 @app.post("/summarize-multi", response_model=MultiSummaryResponse)
-async def summarize_multi(files: List[UploadFile] = File(...), language: str = Form(None)):
+async def summarize_multi(files: List[UploadFile] = File(...), language: str = Form(None), pages: str = Form(None)):
     items: List[StructuredSummaryResponse] = []
     combined_texts: List[str] = []
     
@@ -349,7 +412,16 @@ async def summarize_multi(files: List[UploadFile] = File(...), language: str = F
         if not f.filename.endswith(".pdf"):
             raise HTTPException(status_code=400, detail=f"{f.filename} must be a PDF")
         content = await f.read()
-        text = extract_text_from_pdf(io.BytesIO(content))
+        
+        # Parse page range if provided
+        page_numbers = None
+        if pages:
+            file_stream = io.BytesIO(content)
+            reader = PdfReader(file_stream)
+            total_pages = len(reader.pages)
+            page_numbers = parse_page_range(pages, total_pages)
+        
+        text = extract_text_from_pdf(io.BytesIO(content), page_numbers)
         combined_texts.append(text)
         
         # Use user-selected language or detect from document
@@ -377,6 +449,8 @@ async def summarize_multi(files: List[UploadFile] = File(...), language: str = F
         target_language = detect_language(combined_text)
     
     print(f"Target language for combined summary: {target_language}")
+    if pages:
+        print(f"Processing pages: {pages}")
     
     if len(files) > 1:
         combined_summary = summarize_hierarchical(combined_text, target_language)
@@ -389,14 +463,23 @@ class QAResponse(BaseModel):
     provider: str
 
 @app.post("/qa", response_model=QAResponse)
-async def qa_pdf(question: str = Form(...), files: List[UploadFile] = File(...), language: str = Form(None)):
+async def qa_pdf(question: str = Form(...), files: List[UploadFile] = File(...), language: str = Form(None), pages: str = Form(None)):
     all_texts = []
     
     for file in files:
         if not file.filename.endswith(".pdf"):
             raise HTTPException(status_code=400, detail=f"{file.filename} must be a PDF")
         content = await file.read()
-        text = extract_text_from_pdf(io.BytesIO(content))
+        
+        # Parse page range if provided
+        page_numbers = None
+        if pages:
+            file_stream = io.BytesIO(content)
+            reader = PdfReader(file_stream)
+            total_pages = len(reader.pages)
+            page_numbers = parse_page_range(pages, total_pages)
+        
+        text = extract_text_from_pdf(io.BytesIO(content), page_numbers)
         if not text.strip():
             raise HTTPException(status_code=400, detail=f"Could not extract text from {file.filename}.")
         all_texts.append(text)
@@ -410,6 +493,8 @@ async def qa_pdf(question: str = Form(...), files: List[UploadFile] = File(...),
         target_language = detect_language(combined_text)
     
     print(f"Target language for Q&A: {target_language}")
+    if pages:
+        print(f"Processing pages: {pages}")
     
     prompt = f"""
     Answer the question based ONLY on the document(s) below.
