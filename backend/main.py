@@ -11,6 +11,7 @@ import io
 from typing import List, Optional
 import re
 import json
+from langdetect import detect, LangDetectException
 
 load_dotenv()
 
@@ -47,6 +48,44 @@ class MultiSummaryResponse(BaseModel):
     combined_summary: str
     provider: str
 
+def detect_language(text: str) -> str:
+    """Detect the language of the text and return language name"""
+    try:
+        # Take a sample of text for detection (first 1000 chars)
+        sample = text[:1000].strip()
+        if not sample:
+            return "English"
+        
+        lang_code = detect(sample)
+        
+        # Map language codes to full names
+        lang_map = {
+            'en': 'English',
+            'id': 'Indonesian',
+            'es': 'Spanish',
+            'fr': 'French',
+            'de': 'German',
+            'pt': 'Portuguese',
+            'it': 'Italian',
+            'nl': 'Dutch',
+            'ru': 'Russian',
+            'ja': 'Japanese',
+            'ko': 'Korean',
+            'zh-cn': 'Chinese',
+            'zh-tw': 'Chinese',
+            'ar': 'Arabic',
+            'tr': 'Turkish',
+            'vi': 'Vietnamese',
+            'th': 'Thai',
+        }
+        
+        return lang_map.get(lang_code, 'English')
+    except LangDetectException:
+        return "English"
+    except Exception as e:
+        print(f"Language detection error: {e}")
+        return "English"
+
 def extract_text_from_pdf(file_stream):
     try:
         reader = PdfReader(file_stream)
@@ -57,13 +96,17 @@ def extract_text_from_pdf(file_stream):
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Error reading PDF: {str(e)}")
 
-def summarize_text(text: str) -> str:
+def summarize_text(text: str, target_language: str = None) -> str:
     try:
         truncated_text = text[:30000]
+        
+        # Detect language if not provided
+        if not target_language:
+            target_language = detect_language(truncated_text)
+        
         prompt = f"""
         Please summarize the following document in clear, concise paragraphs.
-        Respond strictly in the same language as the document's dominant language.
-        Do not translate to another language; preserve domain terminology.
+        Respond strictly in {target_language}.
         Highlight key ideas and structure the summary for readability.
 
         Document content:
@@ -75,13 +118,18 @@ def summarize_text(text: str) -> str:
         print(f"AI Error: {e}")
         return f"Error generating summary: {str(e)}"
 
-def summarize_hierarchical(text: str) -> str:
+def summarize_hierarchical(text: str, target_language: str = None) -> str:
     try:
         truncated_text = text[:30000]
+        
+        # Detect language if not provided
+        if not target_language:
+            target_language = detect_language(truncated_text)
+        
         prompt = f"""
         Please provide a hierarchical summary of the following document. 
         Structure the summary with main topics, subtopics, and key details using nested bullet points or a clear outline format. 
-        Respond strictly in the same language as the document's dominant language.
+        Respond strictly in {target_language}.
         
         Document content:
         {truncated_text}
@@ -104,14 +152,18 @@ def _extract_json(text: str) -> Optional[dict]:
             return None
     return None
 
-def summarize_structured(text: str) -> StructuredSummaryResponse:
+def summarize_structured(text: str, target_language: str = None) -> StructuredSummaryResponse:
     truncated_text = text[:30000]
+    
+    # Detect language if not provided
+    if not target_language:
+        target_language = detect_language(truncated_text)
+    
     prompt = f"""
     You are a professional analyst. Read the document and respond ONLY as JSON.
     Keys: executive_summary (string), bullets (array of strings 5-10 items),
     highlights (array of the 5 most important sentences verbatim).
-    Respond strictly in the same language as the document's dominant language.
-    Do not translate to another language; preserve domain terminology.
+    Respond strictly in {target_language}.
 
     Document:
     {truncated_text}
@@ -141,16 +193,20 @@ def summarize_structured(text: str) -> StructuredSummaryResponse:
             provider="gemini",
         )
 
-def summarize_structured_hierarchical(text: str) -> StructuredSummaryResponse:
+def summarize_structured_hierarchical(text: str, target_language: str = None) -> StructuredSummaryResponse:
     truncated_text = text[:30000]
+    
+    # Detect language if not provided
+    if not target_language:
+        target_language = detect_language(truncated_text)
+    
     prompt = f"""
     You are a professional analyst. Read the multiple documents and respond ONLY as JSON.
     Use a hierarchical approach to organize information from multiple documents.
     Keys: executive_summary (string with hierarchical structure using bullet points and indentation), 
     bullets (array of strings 5-8 items organized by document/topic with hierarchical structure),
     highlights (array of the 5 most important sentences verbatim from across all documents).
-    Respond strictly in the same language as the document's dominant language.
-    Do not translate to another language; preserve domain terminology.
+    Respond strictly in {target_language}.
 
     Documents:
     {truncated_text}
@@ -199,7 +255,7 @@ def highlight_sentences(text: str, top_k: int = 5) -> List[str]:
     return [s for _, s in scores[:top_k]]
 
 @app.post("/summarize", response_model=SummaryResponse)
-async def summarize_pdf(files: List[UploadFile] = File(...)):
+async def summarize_pdf(files: List[UploadFile] = File(...), language: str = Form(None)):
     all_texts = []
     filenames = []
     
@@ -225,10 +281,18 @@ async def summarize_pdf(files: List[UploadFile] = File(...)):
     
     combined_text = "\n\n--- Next Document ---\n\n".join(all_texts)
     
-    if len(files) > 1:
-        summary = summarize_hierarchical(combined_text)
+    # Use user-selected language or detect from document
+    if language and language != "english":
+        target_language = language.capitalize()
     else:
-        summary = summarize_text(combined_text)
+        target_language = detect_language(combined_text)
+    
+    print(f"Target language: {target_language}")
+    
+    if len(files) > 1:
+        summary = summarize_hierarchical(combined_text, target_language)
+    else:
+        summary = summarize_text(combined_text, target_language)
     
     if len(filenames) == 1:
         display_name = filenames[0]
@@ -238,7 +302,7 @@ async def summarize_pdf(files: List[UploadFile] = File(...)):
     return SummaryResponse(filename=display_name, summary=summary, provider="gemini")
 
 @app.post("/summarize-structured", response_model=StructuredSummaryResponse)
-async def summarize_pdf_structured(files: List[UploadFile] = File(...)):
+async def summarize_pdf_structured(files: List[UploadFile] = File(...), language: str = Form(None)):
     all_texts = []
     filenames = []
     
@@ -254,10 +318,18 @@ async def summarize_pdf_structured(files: List[UploadFile] = File(...)):
     
     combined_text = "\n\n--- Next Document ---\n\n".join(all_texts)
     
-    if len(files) > 1:
-        result = summarize_structured_hierarchical(combined_text)
+    # Use user-selected language or detect from document
+    if language and language != "english":
+        target_language = language.capitalize()
     else:
-        result = summarize_structured(combined_text)
+        target_language = detect_language(combined_text)
+    
+    print(f"Target language: {target_language}")
+    
+    if len(files) > 1:
+        result = summarize_structured_hierarchical(combined_text, target_language)
+    else:
+        result = summarize_structured(combined_text, target_language)
     
     if len(filenames) == 1:
         result.filename = filenames[0]
@@ -268,35 +340,11 @@ async def summarize_pdf_structured(files: List[UploadFile] = File(...)):
         result.highlights = highlight_sentences(combined_text, top_k=5)
     return result
 
-@app.post("/summarize-hierarchical", response_model=SummaryResponse)
-async def summarize_pdf_hierarchical(files: List[UploadFile] = File(...)):
-    all_texts = []
-    filenames = []
-    
-    for file in files:
-        if not file.filename.endswith(".pdf"):
-            raise HTTPException(status_code=400, detail=f"{file.filename} must be a PDF")
-        content = await file.read()
-        text = extract_text_from_pdf(io.BytesIO(content))
-        if not text.strip():
-            raise HTTPException(status_code=400, detail=f"Could not extract text from {file.filename}.")
-        all_texts.append(text)
-        filenames.append(file.filename)
-    
-    combined_text = "\n\n--- Next Document ---\n\n".join(all_texts)
-    summary = summarize_hierarchical(combined_text)
-    
-    if len(filenames) == 1:
-        display_name = filenames[0]
-    else:
-        display_name = f"{len(filenames)} PDFs: {', '.join(filenames)}"
-    
-    return SummaryResponse(filename=display_name, summary=summary, provider="gemini")
-
 @app.post("/summarize-multi", response_model=MultiSummaryResponse)
-async def summarize_multi(files: List[UploadFile] = File(...)):
+async def summarize_multi(files: List[UploadFile] = File(...), language: str = Form(None)):
     items: List[StructuredSummaryResponse] = []
     combined_texts: List[str] = []
+    
     for f in files:
         if not f.filename.endswith(".pdf"):
             raise HTTPException(status_code=400, detail=f"{f.filename} must be a PDF")
@@ -304,10 +352,16 @@ async def summarize_multi(files: List[UploadFile] = File(...)):
         text = extract_text_from_pdf(io.BytesIO(content))
         combined_texts.append(text)
         
-        if len(files) > 1:
-            res = summarize_structured_hierarchical(text)
+        # Use user-selected language or detect from document
+        if language and language != "english":
+            target_language = language.capitalize()
         else:
-            res = summarize_structured(text)
+            target_language = detect_language(text)
+        
+        if len(files) > 1:
+            res = summarize_structured_hierarchical(text, target_language)
+        else:
+            res = summarize_structured(text, target_language)
         
         res.filename = f.filename
         if not res.highlights or (len(res.highlights) < 3 and text):
@@ -316,10 +370,18 @@ async def summarize_multi(files: List[UploadFile] = File(...)):
     
     combined_text = "\n\n".join(combined_texts)
     
-    if len(files) > 1:
-        combined_summary = summarize_hierarchical(combined_text)
+    # Use user-selected language or detect from combined document
+    if language and language != "english":
+        target_language = language.capitalize()
     else:
-        combined_summary = summarize_text(combined_text)
+        target_language = detect_language(combined_text)
+    
+    print(f"Target language for combined summary: {target_language}")
+    
+    if len(files) > 1:
+        combined_summary = summarize_hierarchical(combined_text, target_language)
+    else:
+        combined_summary = summarize_text(combined_text, target_language)
     return MultiSummaryResponse(items=items, combined_summary=combined_summary, provider="gemini")
 
 class QAResponse(BaseModel):
@@ -327,7 +389,7 @@ class QAResponse(BaseModel):
     provider: str
 
 @app.post("/qa", response_model=QAResponse)
-async def qa_pdf(question: str = Form(...), files: List[UploadFile] = File(...)):
+async def qa_pdf(question: str = Form(...), files: List[UploadFile] = File(...), language: str = Form(None)):
     all_texts = []
     
     for file in files:
@@ -341,10 +403,17 @@ async def qa_pdf(question: str = Form(...), files: List[UploadFile] = File(...))
     
     combined_text = "\n\n--- Next Document ---\n\n".join(all_texts)
     
+    # Use user-selected language or detect from document
+    if language and language != "english":
+        target_language = language.capitalize()
+    else:
+        target_language = detect_language(combined_text)
+    
+    print(f"Target language for Q&A: {target_language}")
+    
     prompt = f"""
     Answer the question based ONLY on the document(s) below.
-    Respond strictly in the same language as the document's dominant language.
-    Do not translate to another language; preserve domain terminology.
+    Respond strictly in {target_language}.
     Provide a concise, factual answer; if uncertain, say you cannot find it.
 
     Document(s):
