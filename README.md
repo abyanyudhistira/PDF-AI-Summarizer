@@ -1,25 +1,92 @@
 # PDF AI Summarizer
 
-## Stack
-- **Backend**: Golang (Fiber v2 + GORM)
-- **AI Service**: Python (FastAPI + Gemini 2.5)
-- **Database**: PostgreSQL 16
-- **Frontend**: Next.js
+AI-powered PDF summarization system with Golang backend, Python AI service, and Next.js frontend.
 
-## Quick Start
+## 🚀 Stack
+- **Backend**: Golang (Fiber v2 + GORM)
+- **AI Service**: Python (FastAPI + Google Gemini 2.5)
+- **Database**: PostgreSQL 16
+- **Frontend**: Next.js 14
+
+## 🐳 Quick Start with Docker (Recommended)
+
+### 1. Setup Environment
 
 ```bash
-# Database
-docker-compose up -d
+# Copy environment template
+cp .env.example .env
 
-# Backend
-cd backend && go run main.go
+# Edit .env and add your Gemini API key
+GEMINI_API_KEY=your_api_key_here
+```
 
-# AI Service
-cd ai-service && python main.py
+### 2. Run All Services
 
-# Frontend
-cd frontend && npm run dev
+```bash
+# Build and start all services
+docker-compose up --build
+
+# Or run in background
+docker-compose up -d --build
+```
+
+### 3. Access Application
+
+- **Frontend**: http://localhost:3000
+- **Backend API**: http://localhost:8080
+- **AI Service**: http://localhost:8000
+- **Database**: localhost:5432
+
+### 4. Stop Services
+
+```bash
+docker-compose down
+```
+
+📖 **Full Docker documentation**: See [DOCKER_SETUP.md](DOCKER_SETUP.md)
+
+---
+
+## 💻 Manual Setup (Development)
+
+### Prerequisites
+- Go 1.21+
+- Python 3.11+
+- Node.js 20+
+- PostgreSQL 16
+
+### 1. Database
+
+```bash
+docker-compose up -d db
+```
+
+### 2. Backend
+
+```bash
+cd backend
+cp .env.example .env
+# Edit .env with your settings
+go mod download
+go run main.go
+```
+
+### 3. AI Service
+
+```bash
+cd ai-service
+cp .env.example .env
+# Add GEMINI_API_KEY to .env
+pip install -r requirements.txt
+python main.py
+```
+
+### 4. Frontend
+
+```bash
+cd frontend
+npm install
+npm run dev
 ```
 
 ## Endpoints
