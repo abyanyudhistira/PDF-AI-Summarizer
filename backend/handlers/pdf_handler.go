@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"net/http"
 	"path/filepath"
 	"pdf-summarizer-backend/config"
 	"pdf-summarizer-backend/database"
@@ -9,21 +8,19 @@ import (
 	"pdf-summarizer-backend/utils"
 	"strconv"
 
-	"github.com/gin-gonic/gin"
+	"github.com/gofiber/fiber/v2"
 )
 
 // UploadPDF handles PDF file upload
-func UploadPDF(c *gin.Context) {
+func UploadPDF(c *fiber.Ctx) error {
 	file, err := c.FormFile("file")
 	if err != nil {
-		utils.ErrorResponse(c, http.StatusBadRequest, "No file uploaded")
-		return
+		return utils.ErrorResponse(c, fiber.StatusBadRequest, "No file uploaded")
 	}
 
 	// Validate file
 	if err := utils.ValidateFile(file, config.AppConfig.MaxFileSize); err != nil {
-		utils.ErrorResponse(c, http.StatusBadRequest, err.Error())
-		return
+		return utils.ErrorResponse(c, fiber.StatusBadRequest, err.Error())
 	}
 
 	// Generate unique filename
@@ -31,9 +28,8 @@ func UploadPDF(c *gin.Context) {
 	filePath := filepath.Join(config.AppConfig.UploadDir, uniqueFilename)
 
 	// Save file
-	if err := c.SaveUploadedFile(file, filePath); err != nil {
-		utils.ErrorResponse(c, http.StatusInternalServerError, "Failed to save file")
-		return
+	if err := c.SaveFile(file, filePath); err != nil {
+		return utils.ErrorResponse(c, fiber.StatusInternalServerError, "Failed to save file")
 	}
 
 	// Extract PDF metadata (total pages) - simplified version
@@ -52,24 +48,22 @@ func UploadPDF(c *gin.Context) {
 	if err := database.DB.Create(&pdfFile).Error; err != nil {
 		// Clean up file if database operation fails
 		utils.DeleteFile(filePath)
-		utils.ErrorResponse(c, http.StatusInternalServerError, "Failed to save file metadata")
-		return
+		return utils.ErrorResponse(c, fiber.StatusInternalServerError, "Failed to save file metadata")
 	}
 
-	utils.SuccessResponse(c, http.StatusCreated, "File uploaded successfully", pdfFile)
+	return utils.SuccessResponse(c, fiber.StatusCreated, "File uploaded successfully", pdfFile)
 }
 
 // ListPDFs returns list of all uploaded PDFs
-func ListPDFs(c *gin.Context) {
+func ListPDFs(c *fiber.Ctx) error {
 	var pdfs []models.PDFFile
 	
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "100"))
+	page, _ := strconv.Atoi(c.Query("page", "1"))
+	limit, _ := strconv.Atoi(c.Query("limit", "100"))
 	offset := (page - 1) * limit
 
 	if err := database.DB.Order("upload_date DESC").Offset(offset).Limit(limit).Find(&pdfs).Error; err != nil {
-		utils.ErrorResponse(c, http.StatusInternalServerError, "Failed to fetch PDFs")
-		return
+		return utils.ErrorResponse(c, fiber.StatusInternalServerError, "Failed to fetch PDFs")
 	}
 
 	// Add summary count for each PDF
@@ -89,17 +83,16 @@ func ListPDFs(c *gin.Context) {
 		})
 	}
 
-	utils.SuccessResponse(c, http.StatusOK, "PDFs fetched successfully", responses)
+	return utils.SuccessResponse(c, fiber.StatusOK, "PDFs fetched successfully", responses)
 }
 
 // GetPDF returns details of a specific PDF
-func GetPDF(c *gin.Context) {
-	id := c.Param("id")
+func GetPDF(c *fiber.Ctx) error {
+	id := c.Params("id")
 	
 	var pdf models.PDFFile
 	if err := database.DB.First(&pdf, id).Error; err != nil {
-		utils.ErrorResponse(c, http.StatusNotFound, "PDF not found")
-		return
+		return utils.ErrorResponse(c, fiber.StatusNotFound, "PDF not found")
 	}
 
 	var summaryCount int64
@@ -115,17 +108,16 @@ func GetPDF(c *gin.Context) {
 		SummaryCount:     summaryCount,
 	}
 
-	utils.SuccessResponse(c, http.StatusOK, "PDF fetched successfully", response)
+	return utils.SuccessResponse(c, fiber.StatusOK, "PDF fetched successfully", response)
 }
 
 // DeletePDF deletes a PDF and all its summaries
-func DeletePDF(c *gin.Context) {
-	id := c.Param("id")
+func DeletePDF(c *fiber.Ctx) error {
+	id := c.Params("id")
 	
 	var pdf models.PDFFile
 	if err := database.DB.First(&pdf, id).Error; err != nil {
-		utils.ErrorResponse(c, http.StatusNotFound, "PDF not found")
-		return
+		return utils.ErrorResponse(c, fiber.StatusNotFound, "PDF not found")
 	}
 
 	// Delete physical file
@@ -133,25 +125,24 @@ func DeletePDF(c *gin.Context) {
 
 	// Delete database record (summaries will be deleted automatically due to cascade)
 	if err := database.DB.Delete(&pdf).Error; err != nil {
-		utils.ErrorResponse(c, http.StatusInternalServerError, "Failed to delete PDF")
-		return
+		return utils.ErrorResponse(c, fiber.StatusInternalServerError, "Failed to delete PDF")
 	}
 
-	utils.SuccessResponse(c, http.StatusOK, "PDF deleted successfully", nil)
+	return utils.SuccessResponse(c, fiber.StatusOK, "PDF deleted successfully", nil)
 }
 
 // GetPDFStats returns statistics about PDFs
-func GetPDFStats(c *gin.Context) {
+func GetPDFStats(c *fiber.Ctx) error {
 	var totalPDFs int64
 	var totalSummaries int64
 
 	database.DB.Model(&models.PDFFile{}).Count(&totalPDFs)
 	database.DB.Model(&models.Summary{}).Count(&totalSummaries)
 
-	stats := gin.H{
+	stats := fiber.Map{
 		"total_pdfs":      totalPDFs,
 		"total_summaries": totalSummaries,
 	}
 
-	utils.SuccessResponse(c, http.StatusOK, "Stats fetched successfully", stats)
+	return utils.SuccessResponse(c, fiber.StatusOK, "Stats fetched successfully", stats)
 }

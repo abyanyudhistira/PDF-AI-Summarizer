@@ -1,74 +1,120 @@
 # PDF AI Summarizer
 
-Aplikasi ringkas PDF berbasis web dengan frontend Next.js dan backend FastAPI. Ringkasan dihasilkan menggunakan Gemini tanpa menyertakan API key di repository.
+## Stack
+- **Backend**: Golang (Fiber v2 + GORM)
+- **AI Service**: Python (FastAPI + Gemini 2.5)
+- **Database**: PostgreSQL 16
+- **Frontend**: Next.js
 
-## Arsitektur
-- `frontend/` Next.js (App Router) + Tailwind (v4)
-- `backend/` FastAPI dengan endpoint `POST /summarize`
-- Komunikasi: Frontend memanggil `http://localhost:8000/summarize`
+## Quick Start
 
-## Prasyarat
-- Node.js 18+
-- Python 3.10+
-- Paket manager (npm)
-- Akun Google AI Studio untuk mendapatkan `GEMINI_API_KEY` (nilai tidak ditaruh di repo)
+```bash
+# Database
+docker-compose up -d
 
-## Menjalankan Backend (FastAPI)
-1. Masuk ke folder backend
-   ```bash
-   cd backend
-   ```
-2. (Opsional) Buat virtual environment
-   ```bash
-   python -m venv .venv
-   .venv\Scripts\activate  # Windows
-   ```
-3. Install dependencies
-   ```bash
-   pip install -r requirements.txt
-   ```
-4. Buat file `.env` di folder `backend` dan isi variabel berikut tanpa memasukkan nilai ke repository:
-   ```env
-   GEMINI_API_KEY=YOUR_GEMINI_KEY_HERE
-   ```
-   Pastikan nilai key diisi di mesin lokal Anda, bukan dikomit.
+# Backend
+cd backend && go run main.go
 
-5. Jalankan server
-   ```bash
-   python main.py
-   ```
-   Server akan berjalan di `http://localhost:8000`.
+# AI Service
+cd ai-service && python main.py
 
-## Menjalankan Frontend (Next.js)
-1. Masuk ke folder frontend
-   ```bash
-   cd frontend
-   ```
-2. Install dependencies
-   ```bash
-   npm install
-   ```
-3. Jalankan pengembangan
-   ```bash
-   npm run dev
-   ```
-   Buka `http://localhost:3000`.
+# Frontend
+cd frontend && npm run dev
+```
 
-## Cara Pakai
-- Buka halaman utama, klik kotak upload atau tombol untuk memilih file PDF.
-- Tekan `Summarize PDF`. Frontend akan mengirim file ke backend dan menampilkan ringkasan.
-- Setelah ringkasan muncul, tersedia tombol `Copy` dan `Download` untuk hasil ringkasan.
+## Endpoints
 
-## Catatan Keamanan
-- Jangan menyimpan `GEMINI_API_KEY` di repository atau file publik.
-- Simpan variabel pada `.env` lokal atau secret manager.
+### Backend (Port 8080)
 
-## Troubleshooting
-- 400 "File must be a PDF": pastikan ekstensi `.pdf`.
-- 400 "Could not extract text from PDF": PDF mungkin berbentuk gambar/non-selectable; pertimbangkan OCR.
-- 500 "Error generating summary": pastikan backend berjalan dan `GEMINI_API_KEY` valid.
-- CORS: backend sudah mengizinkan semua origin untuk pengembangan.
+**PDF Management:**
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/health` | Health check |
+| POST | `/api/pdfs/upload` | Upload PDF |
+| GET | `/api/pdfs` | List PDFs |
+| GET | `/api/pdfs/:id` | Get PDF detail |
+| DELETE | `/api/pdfs/:id` | Delete PDF |
+| GET | `/api/pdfs/stats/count` | Get statistics |
 
-## Skrip Penting
-- Backend: `python main.py`
-- Frontend: `npm run dev`
+**Summarization:**
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/pdfs/:id/summarize` | Trigger summarization |
+| GET | `/api/pdfs/:id/summaries` | List summaries for PDF |
+| GET | `/api/summaries` | List all summaries |
+| GET | `/api/summaries/:id` | Get summary detail |
+| DELETE | `/api/summaries/:id` | Delete summary |
+
+### AI Service (Port 8000)
+| Endpoint | Body |
+|----------|------|
+| POST `/summarize` | files, language, pages |
+| POST `/summarize-structured` | files, language, pages |
+| POST `/summarize-multi` | files, language |
+| POST `/qa` | question, files, language |
+
+## Testing
+
+```bash
+# Health
+curl http://localhost:8080/health
+
+# Upload PDF
+curl -X POST http://localhost:8080/api/pdfs/upload -F "file=@test.pdf"
+
+# List PDFs
+curl http://localhost:8080/api/pdfs
+
+# Summarize (Simple)
+curl -X POST http://localhost:8080/api/pdfs/1/summarize \
+  -H "Content-Type: application/json" \
+  -d '{"mode":"simple","language":"Indonesian"}'
+
+# Summarize (Structured)
+curl -X POST http://localhost:8080/api/pdfs/1/summarize \
+  -H "Content-Type: application/json" \
+  -d '{"mode":"structured","language":"Indonesian","pages":"1-5"}'
+
+# Summarize (QA)
+curl -X POST http://localhost:8080/api/pdfs/1/summarize \
+  -H "Content-Type: application/json" \
+  -d '{"mode":"qa","question":"Apa topik utama?","language":"Indonesian"}'
+
+# List Summaries
+curl http://localhost:8080/api/pdfs/1/summaries
+
+# Stats
+curl http://localhost:8080/api/pdfs/stats/count
+```
+## Database
+
+```bash
+# Connect
+docker exec -it postgres_db psql -U admin -d pdf_summarizer
+
+# Query
+SELECT * FROM pdf_files;
+SELECT * FROM summaries;
+```
+
+## Features
+- ✅ PDF upload (max 10MB)
+- ✅ CRUD operations
+- ✅ **Go ↔ Python integration via HTTP**
+- ✅ **AI summarization with result storage**
+- ✅ **Processing time tracking**
+- ✅ Simple, structured, multi-PDF summarization
+- ✅ Q&A on PDF content
+- ✅ Multi-language support (15+ languages)
+- ✅ Page range selection
+- ✅ Soft delete & cascade delete
+
+## Structure
+
+```
+pdf-ai-summarizer/
+├── backend/           # Fiber + GORM
+├── ai-service/        # FastAPI + Gemini
+├── frontend/          # Next.js
+└── docker-compose.yml # PostgreSQL
+```

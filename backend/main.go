@@ -7,8 +7,10 @@ import (
 	"pdf-summarizer-backend/handlers"
 	"pdf-summarizer-backend/utils"
 
-	"github.com/gin-contrib/cors"
-	"github.com/gin-gonic/gin"
+	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/middleware/cors"
+	"github.com/gofiber/fiber/v2/middleware/logger"
+	"github.com/gofiber/fiber/v2/middleware/recover"
 )
 
 func main() {
@@ -26,52 +28,54 @@ func main() {
 	// Run migrations
 	database.Migrate()
 
-	// Setup Gin router
-	router := gin.Default()
+	// Setup Fiber app
+	app := fiber.New(fiber.Config{
+		AppName: "PDF Summarizer API",
+		BodyLimit: int(config.AppConfig.MaxFileSize) + 1024*1024, // Max file size + 1MB buffer
+	})
 
-	// CORS middleware
-	router.Use(cors.New(cors.Config{
-		AllowOrigins:     []string{"*"},
-		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
-		AllowHeaders:     []string{"Origin", "Content-Type", "Accept", "Authorization"},
-		ExposeHeaders:    []string{"Content-Length"},
-		AllowCredentials: true,
+	// Middleware
+	app.Use(recover.New())
+	app.Use(logger.New())
+	app.Use(cors.New(cors.Config{
+		AllowOrigins: "*",
+		AllowMethods: "GET,POST,PUT,DELETE,OPTIONS",
+		AllowHeaders: "Origin,Content-Type,Accept,Authorization",
 	}))
 
 	// Health check
-	router.GET("/health", func(c *gin.Context) {
-		c.JSON(200, gin.H{
+	app.Get("/health", func(c *fiber.Ctx) error {
+		return c.JSON(fiber.Map{
 			"status":  "ok",
 			"message": "PDF Summarizer API is running",
 		})
 	})
 
 	// API routes
-	api := router.Group("/api")
-	{
-		// PDF management routes
-		pdfs := api.Group("/pdfs")
-		{
-			pdfs.POST("/upload", handlers.UploadPDF)
-			pdfs.GET("", handlers.ListPDFs)
-			pdfs.GET("/:id", handlers.GetPDF)
-			pdfs.DELETE("/:id", handlers.DeletePDF)
-			pdfs.GET("/stats/count", handlers.GetPDFStats)
-		}
+	api := app.Group("/api")
+	
+	// PDF management routes
+	pdfs := api.Group("/pdfs")
+	pdfs.Post("/upload", handlers.UploadPDF)
+	pdfs.Get("/", handlers.ListPDFs)
+	pdfs.Get("/:id", handlers.GetPDF)
+	pdfs.Delete("/:id", handlers.DeletePDF)
+	pdfs.Get("/stats/count", handlers.GetPDFStats)
+	
+	// PDF Summarization routes
+	pdfs.Post("/:id/summarize", handlers.SummarizePDF)
+	pdfs.Get("/:id/summaries", handlers.ListSummaries)
 
-		// Summary routes (will be added later)
-		// summaries := api.Group("/summaries")
-		// {
-		// 	summaries.GET("", handlers.ListSummaries)
-		// 	summaries.GET("/:id", handlers.GetSummary)
-		// 	summaries.DELETE("/:id", handlers.DeleteSummary)
-		// }
-	}
+	// Summary routes
+	summaries := api.Group("/summaries")
+	summaries.Get("/", handlers.GetAllSummaries)
+	summaries.Get("/:summaryId", handlers.GetSummary)
+	summaries.Delete("/:summaryId", handlers.DeleteSummary)
 
 	// Start server
 	port := config.AppConfig.Port
 	log.Printf("🚀 Server starting on port %s", port)
-	if err := router.Run(":" + port); err != nil {
+	if err := app.Listen(":" + port); err != nil {
 		log.Fatal("Failed to start server:", err)
 	}
 }

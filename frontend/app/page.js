@@ -1,183 +1,142 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import ReactMarkdown from "react-markdown";
 
-const MarkdownComponents = {
-  ul: ({ node, ...props }) => (
-    <ul
-      className="list-disc list-inside space-y-1 ml-4 text-gray-200"
-      {...props}
-    />
-  ),
-  ol: ({ node, ...props }) => (
-    <ol
-      className="list-decimal list-inside space-y-1 ml-4 text-gray-200"
-      {...props}
-    />
-  ),
-  li: ({ node, ...props }) => <li className="mb-1 text-gray-200" {...props} />,
-  h1: ({ node, ...props }) => (
-    <h1 className="text-xl font-bold mt-4 mb-2 text-white" {...props} />
-  ),
-  h2: ({ node, ...props }) => (
-    <h2 className="text-lg font-bold mt-3 mb-2 text-white" {...props} />
-  ),
-  h3: ({ node, ...props }) => (
-    <h3 className="text-md font-bold mt-2 mb-1 text-white" {...props} />
-  ),
-  strong: ({ node, ...props }) => (
-    <strong className="font-semibold text-white" {...props} />
-  ),
-  p: ({ node, ...props }) => <p className="mb-2 text-gray-200" {...props} />,
-};
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
 
-export default function Home() {
-  const backendUrl =
-    process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000";
+// API Client
+const api = {
+  async getPDFs() {
+    const response = await fetch(`${API_URL}/api/pdfs`);
+    if (!response.ok) throw new Error("Failed to fetch PDFs");
+    return response.json();
+  },
 
-  const [files, setFiles] = useState([]);
-  const [pendingFiles, setPendingFiles] = useState([]);
-  const [showConfirmModal, setShowConfirmModal] = useState(false);
-  const [showConfigMenu, setShowConfigMenu] = useState(false);
-  const [language, setLanguage] = useState("english");
-  const [pageRange, setPageRange] = useState("all");
-  const [customPages, setCustomPages] = useState("");
-  const [mode, setMode] = useState("simple");
-  const [summary, setSummary] = useState("");
-  const [structured, setStructured] = useState(null);
-  const [multiResult, setMultiResult] = useState(null);
-  const [qaQuestion, setQaQuestion] = useState("");
-  const [qaAnswer, setQaAnswer] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-
-  const wordCount = summary ? summary.trim().split(/\s+/).length : 0;
-
-  const copyText = async (text) => {
-    if (!text) return;
-    try {
-      await navigator.clipboard.writeText(text);
-    } catch {}
-  };
-
-  const downloadText = (text, name = "summary.txt") => {
-    if (!text) return;
-    const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = name;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
-  };
-
-  const downloadSummary = () => {
-    const base =
-      files[0]?.name?.replace(/\.pdf$/i, "") ||
-      structured?.filename ||
-      "summary";
-    downloadText(summary, `${base}-summary.txt`);
-  };
-
-  const handleFileChange = (e) => {
-    const list = Array.from(e.target.files || []);
-    if (list.length > 0) {
-      setPendingFiles(list);
-      setShowConfirmModal(true);
-    }
-    e.target.value = '';
-  };
-
-  const confirmUpload = () => {
-    setFiles(pendingFiles);
-    setShowConfirmModal(false);
-    setShowConfigMenu(true);
-    setError("");
-    setSummary("");
-    setStructured(null);
-    setMultiResult(null);
-    setQaAnswer("");
-  };
-
-  const handleSaveAndContinue = () => {
-    setShowConfigMenu(false);
-    setPendingFiles([]);
-  };
-
-  const handleBackToUpload = () => {
-    setFiles([]);
-    setSummary("");
-    setStructured(null);
-    setMultiResult(null);
-    setQaAnswer("");
-    setError("");
-  };
-
-  const cancelUpload = () => {
-    setShowConfirmModal(false);
-    setPendingFiles([]);
-  };
-
-  const fetchAPI = async (endpoint, formData, errorMsg) => {
-    const response = await fetch(`${backendUrl}${endpoint}`, {
+  async uploadPDF(file) {
+    const formData = new FormData();
+    formData.append("file", file);
+    const response = await fetch(`${API_URL}/api/pdfs/upload`, {
       method: "POST",
       body: formData,
     });
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.detail || errorMsg);
+      const error = await response.json();
+      throw new Error(error.error || "Upload failed");
     }
     return response.json();
+  },
+
+  async deletePDF(id) {
+    const response = await fetch(`${API_URL}/api/pdfs/${id}`, {
+      method: "DELETE",
+    });
+    if (!response.ok) throw new Error("Failed to delete PDF");
+    return response.json();
+  },
+
+  async getSummaries(pdfId) {
+    const response = await fetch(`${API_URL}/api/pdfs/${pdfId}/summaries`);
+    if (!response.ok) throw new Error("Failed to fetch summaries");
+    return response.json();
+  },
+
+  async deleteSummary(summaryId) {
+    const response = await fetch(`${API_URL}/api/summaries/${summaryId}`, {
+      method: "DELETE",
+    });
+    if (!response.ok) throw new Error("Failed to delete summary");
+    return response.json();
+  },
+
+  async summarizePDF(pdfId, options) {
+    const response = await fetch(`${API_URL}/api/pdfs/${pdfId}/summarize`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(options),
+    });
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || "Summarization failed");
+    }
+    return response.json();
+  },
+};
+
+// Markdown Components
+const MarkdownComponents = {
+  ul: ({ node, ...props }) => (
+    <ul className="list-disc list-inside space-y-1 ml-4 text-gray-200" {...props} />
+  ),
+  ol: ({ node, ...props }) => (
+    <ol className="list-decimal list-inside space-y-1 ml-4 text-gray-200" {...props} />
+  ),
+  li: ({ node, ...props }) => <li className="mb-1 text-gray-200" {...props} />,
+  h1: ({ node, ...props }) => <h1 className="text-xl font-bold mt-4 mb-2 text-white" {...props} />,
+  h2: ({ node, ...props }) => <h2 className="text-lg font-bold mt-3 mb-2 text-white" {...props} />,
+  h3: ({ node, ...props }) => <h3 className="text-md font-bold mt-2 mb-1 text-white" {...props} />,
+  strong: ({ node, ...props }) => <strong className="font-semibold text-white" {...props} />,
+  p: ({ node, ...props }) => <p className="mb-2 text-gray-200" {...props} />,
+};
+
+export default function Home() {
+  const [view, setView] = useState("library"); // library, upload, config, result, history
+  const [pdfList, setPdfList] = useState([]);
+  const [selectedPDF, setSelectedPDF] = useState(null);
+  const [file, setFile] = useState(null);
+  const [summaryHistory, setSummaryHistory] = useState([]);
+  
+  // Configuration
+  const [mode, setMode] = useState("simple");
+  const [language, setLanguage] = useState("indonesian");
+  const [pageRange, setPageRange] = useState("all");
+  const [customPages, setCustomPages] = useState("");
+  const [question, setQuestion] = useState("");
+
+  // Results
+  const [summary, setSummary] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    loadPDFs();
+  }, []);
+
+  const loadPDFs = async () => {
+    try {
+      const result = await api.getPDFs();
+      setPdfList(result.data || []);
+    } catch (err) {
+      console.error("Failed to load PDFs:", err);
+    }
   };
 
-  const handleSubmit = async () => {
-    setError("");
-    setSummary("");
-    setStructured(null);
-    setMultiResult(null);
-    setQaAnswer("");
-
-    if (!files.length) {
-      setError("Pilih minimal satu PDF.");
-      return;
+  const handleFileChange = (e) => {
+    const selectedFile = e.target.files?.[0];
+    if (selectedFile) {
+      if (!selectedFile.name.endsWith(".pdf")) {
+        setError("Only PDF files are allowed");
+        return;
+      }
+      if (selectedFile.size > 10 * 1024 * 1024) {
+        setError("File size must be less than 10MB");
+        return;
+      }
+      setFile(selectedFile);
+      setError("");
     }
+  };
 
-    if (mode === "qa" && !qaQuestion.trim()) {
-      setError("Tulis pertanyaan terlebih dahulu.");
-      return;
-    }
-
+  const handleUpload = async () => {
+    if (!file) return;
     setLoading(true);
-    const formData = new FormData();
-    files.forEach((f) => formData.append("files", f, f.name));
-    if (mode === "qa") formData.append("question", qaQuestion);
-    
-    // Add selected language to formData
-    formData.append("language", language);
-    
-    // Add page range to formData
-    if (pageRange === "custom" && customPages.trim()) {
-      formData.append("pages", customPages.trim());
-    }
+    setError("");
 
     try {
-      const endpoints = {
-        simple: ["/summarize", "Gagal meringkas PDF"],
-        structured: ["/summarize-structured", "Gagal meringkas terstruktur"],
-        multi: ["/summarize-multi", "Gagal meringkas banyak PDF"],
-        qa: ["/qa", "Gagal menjawab pertanyaan"],
-      };
-
-      const [endpoint, errorMsg] = endpoints[mode];
-      const data = await fetchAPI(endpoint, formData, errorMsg);
-
-      if (mode === "simple") setSummary(data.summary);
-      else if (mode === "structured") setStructured(data);
-      else if (mode === "multi") setMultiResult(data);
-      else if (mode === "qa") setQaAnswer(data.answer);
+      await api.uploadPDF(file);
+      setFile(null);
+      await loadPDFs();
+      setView("library");
     } catch (err) {
       setError(err.message);
     } finally {
@@ -185,55 +144,117 @@ export default function Home() {
     }
   };
 
-  const exportData = async (format) => {
+  const handleSelectPDF = async (pdf) => {
+    setSelectedPDF(pdf);
+    setError("");
+    
+    // Load summary history for this PDF
     try {
-      if (!structured) {
-        setError("Tidak ada data untuk diexport.");
-        return;
+      const result = await api.getSummaries(pdf.id);
+      setSummaryHistory(result.data || []);
+      
+      // If has summaries, show history first, otherwise go to config
+      if (result.data && result.data.length > 0) {
+        setView("history");
+      } else {
+        setView("config");
       }
-      const payload = {
-        filename: structured.filename || files[0]?.name || "result",
-        executive_summary: structured.executive_summary || "",
-        bullets: structured.bullets || [],
-        highlights: structured.highlights || [],
-        qa_pairs: qaAnswer ? [{ question: qaQuestion, answer: qaAnswer }] : [],
-        format,
-      };
-      const resp = await fetch(`${backendUrl}/export`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      if (!resp.ok) {
-        const errorData = await resp.json().catch(() => ({}));
-        throw new Error(errorData.detail || "Export gagal");
+    } catch (err) {
+      console.error("Failed to load summaries:", err);
+      setView("config");
+    }
+  };
+
+  const handleDeletePDF = async (id) => {
+    if (!confirm("Delete this PDF?")) return;
+    try {
+      await api.deletePDF(id);
+      await loadPDFs();
+      if (selectedPDF?.id === id) {
+        setSelectedPDF(null);
+        setView("library");
       }
-      const blob = await resp.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `${payload.filename}.${format}`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
     } catch (err) {
       setError(err.message);
     }
   };
 
+  const handleDeleteSummary = async (summaryId) => {
+    if (!confirm("Delete this summary?")) return;
+    try {
+      await api.deleteSummary(summaryId);
+      // Reload summary history
+      const result = await api.getSummaries(selectedPDF.id);
+      setSummaryHistory(result.data || []);
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  const handleViewSummary = (summaryItem) => {
+    setSummary(summaryItem);
+    setMode(summaryItem.mode);
+    setView("result");
+  };
+
+  const handleSummarize = async () => {
+    if (!selectedPDF) return;
+    if (mode === "qa" && !question.trim()) {
+      setError("Please enter a question");
+      return;
+    }
+
+    setLoading(true);
+    setError("");
+    setSummary(null);
+
+    try {
+      const options = {
+        mode,
+        language,
+        pages: pageRange === "custom" && customPages ? customPages : null,
+        question: mode === "qa" ? question : null,
+      };
+
+      const result = await api.summarizePDF(selectedPDF.id, options);
+      setSummary(result.data);
+      setView("result");
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const copyText = async (text) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      alert("Copied!");
+    } catch (err) {
+      console.error("Failed to copy:", err);
+    }
+  };
+
+  const downloadText = (text, filename) => {
+    const blob = new Blob([text], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  };
+
   return (
-    <div className="min-h-screen bg-gray-900 flex relative">
+    <div className="min-h-screen bg-gray-900 flex">
       {/* Sidebar */}
       <div className="w-80 bg-gray-800 p-6 flex flex-col">
         <div className="mb-8">
           <div className="flex items-center gap-3 mb-4">
             <div className="w-12 h-12 bg-red-600 rounded-lg flex items-center justify-center">
-              <svg
-                className="w-8 h-8 text-white"
-                viewBox="0 0 24 24"
-                fill="currentColor"
-              >
+              <svg className="w-8 h-8 text-white" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6z" />
                 <path d="M14 2v6h6" />
               </svg>
@@ -241,150 +262,75 @@ export default function Home() {
             <h1 className="text-2xl font-bold text-white">AI PDF Summarizer</h1>
           </div>
           <p className="text-gray-300 text-sm leading-relaxed">
-            Upload any PDF & AI will make notes & flashcards instantly. This AI will read your PDF and tell you all the important
-            stuff in it.
+            Upload PDF dan AI akan membuat ringkasan menggunakan Golang + Python + Gemini AI.
           </p>
+        </div>
+
+        {/* Navigation */}
+        <div className="space-y-2 mb-6">
+          <button
+            onClick={() => setView("library")}
+            className={`w-full text-left px-4 py-3 rounded-lg transition ${
+              view === "library" ? "bg-red-600 text-white" : "text-gray-300 hover:bg-gray-700"
+            }`}
+          >
+            📚 My Library
+          </button>
+          <button
+            onClick={() => setView("upload")}
+            className={`w-full text-left px-4 py-3 rounded-lg transition ${
+              view === "upload" ? "bg-red-600 text-white" : "text-gray-300 hover:bg-gray-700"
+            }`}
+          >
+            ⬆️ Upload PDF
+          </button>
         </div>
 
         <div className="border-t border-gray-700 pt-6">
           <div className="flex items-center gap-2 mb-4">
-            <svg
-              className="w-5 h-5 text-yellow-400"
-              fill="currentColor"
-              viewBox="0 0 20 20"
-            >
+            <svg className="w-5 h-5 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
               <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
             </svg>
-            <h3 className="text-white font-semibold">Examples</h3>
+            <h3 className="text-white font-semibold">Features</h3>
           </div>
-
           <div className="space-y-4">
             <div>
-              <h4 className="text-white font-medium text-sm mb-1">
-                Reading Comprehension:
-              </h4>
-              <p className="text-gray-400 text-xs">
-                Summarize a nonfiction article on ecosystems for 5th-grade
-                science and generate key takeaways.
-              </p>
+              <h4 className="text-white font-medium text-sm mb-1">Simple Summary:</h4>
+              <p className="text-gray-400 text-xs">Ringkasan sederhana dan mudah dipahami.</p>
             </div>
-
             <div>
-              <h4 className="text-white font-medium text-sm mb-1">
-                Study Support:
-              </h4>
-              <p className="text-gray-400 text-xs">
-                Upload a biology textbook chapter and create flashcards for high
-                school test prep.
-              </p>
+              <h4 className="text-white font-medium text-sm mb-1">Structured Summary:</h4>
+              <p className="text-gray-400 text-xs">Executive summary + key points + highlights.</p>
+            </div>
+            <div>
+              <h4 className="text-white font-medium text-sm mb-1">Q&A Mode:</h4>
+              <p className="text-gray-400 text-xs">Tanyakan pertanyaan tentang isi PDF.</p>
             </div>
           </div>
         </div>
 
         <div className="mt-auto pt-6 border-t border-gray-700">
           <div className="text-gray-400 text-sm">
-            <p className="mb-2">Ready to summarize your PDF?</p>
-            <p className="text-xs">Upload a file to get started.</p>
+            <p className="mb-2">Tech Stack:</p>
+            <ul className="text-xs space-y-1">
+              <li>• Golang (Fiber)</li>
+              <li>• Python (FastAPI)</li>
+              <li>• Google Gemini AI</li>
+              <li>• PostgreSQL</li>
+            </ul>
           </div>
         </div>
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 p-8 overflow-y-auto flex items-center justify-center">
-        <div className="max-w-4xl mx-auto w-full">
-          {/* Upload Area */}
-          {!summary && !structured && !multiResult && !qaAnswer && (
-            <div className="space-y-6">
-              <label
-                htmlFor="file-upload"
-                className="block border-2 border-dashed border-purple-500 rounded-2xl p-16 hover:border-purple-400 transition-colors cursor-pointer bg-gray-800/50"
-              >
-                <div className="text-center">
-                  <div className="mx-auto w-16 h-16 bg-blue-500/20 rounded-full flex items-center justify-center mb-4">
-                    <svg
-                      className="w-8 h-8 text-blue-400"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
-                      />
-                    </svg>
-                  </div>
-                  <h3 className="text-white text-xl font-semibold mb-2">
-                    Drag & drop a PDF file to upload
-                  </h3>
-                  <button
-                    type="button"
-                    onClick={() => document.getElementById('file-upload').click()}
-                    className="mt-4 bg-gray-700 hover:bg-gray-600 text-white px-6 py-2 rounded-lg text-sm transition-colors cursor-pointer"
-                  >
-                    Select files
-                  </button>
-                  <input
-                    id="file-upload"
-                    type="file"
-                    className="hidden"
-                    accept=".pdf"
-                    multiple
-                    onChange={handleFileChange}
-                  />
-                </div>
-              </label>
-              <div className="text-center">
-                <button
-                  onClick={handleSubmit}
-                  disabled={loading || !files.length}
-                  className="bg-emerald-500 hover:bg-emerald-600 text-white font-semibold px-8 py-3 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer"
-                >
-                  {loading ? "Processing..." : "Generate Summary"}
-                </button>
-              </div>
-
-              {files.length > 0 && (
-                <div className="bg-gray-800 rounded-lg p-4">
-                  <h4 className="text-white font-medium mb-2">
-                    Selected Files:
-                  </h4>
-                  <ul className="space-y-1">
-                    {files.map((f) => (
-                      <li
-                        key={f.name}
-                        className="text-gray-300 text-sm flex items-center gap-2"
-                      >
-                        <svg
-                          className="w-4 h-4 text-red-500"
-                          fill="currentColor"
-                          viewBox="0 0 20 20"
-                        >
-                          <path d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" />
-                        </svg>
-                        {f.name}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-            </div>
-          )}
-
+      <div className="flex-1 p-8 overflow-y-auto">
+        <div className="max-w-4xl mx-auto">
+          {/* Error Message */}
           {error && (
             <div className="rounded-lg bg-red-900/50 border border-red-500 p-4 mb-6">
               <div className="flex items-start gap-3">
-                <svg
-                  className="h-5 w-5 text-red-400 mt-0.5"
-                  fill="currentColor"
-                  viewBox="0 0 20 20"
-                >
-                  <path
-                    fillRule="evenodd"
-                    d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
-                    clipRule="evenodd"
-                  />
+                <svg className="h-5 w-5 text-red-400 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
                 </svg>
                 <div>
                   <h3 className="text-red-400 font-medium">Error</h3>
@@ -394,327 +340,250 @@ export default function Home() {
             </div>
           )}
 
-          {summary && mode === "simple" && (
-            <div className="space-y-4">
-              <button
-                onClick={handleBackToUpload}
-                className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-                </svg>
-                Back to Upload
-              </button>
-              <div className="bg-gray-800 rounded-xl overflow-hidden border border-gray-700">
-              <div className="flex items-center justify-between px-6 py-4 bg-gradient-to-r from-red-600 to-red-700">
-                <div className="flex items-center gap-3">
-                  <svg
-                    className="h-6 w-6 text-white"
-                    viewBox="0 0 24 24"
-                    fill="currentColor"
-                  >
-                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6z" />
-                  </svg>
-                  <div>
-                    <h3 className="text-lg font-semibold text-white">
-                      PDF Summary
-                    </h3>
-                    {files[0] && (
-                      <p className="text-xs text-white/80">{files[0].name}</p>
-                    )}
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => copyText(summary)}
-                    className="bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-lg text-sm transition-colors"
-                  >
-                    Copy
-                  </button>
-                  <button
-                    onClick={downloadSummary}
-                    className="bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-lg text-sm transition-colors"
-                  >
-                    Download
-                  </button>
-                </div>
-              </div>
-              <div className="p-6">
-                <div className="mb-3 text-sm text-gray-400">
-                  ~{wordCount} words
-                </div>
-                <div className="text-gray-200 leading-relaxed prose prose-invert max-w-none">
-                  <ReactMarkdown components={MarkdownComponents}>
-                    {summary}
-                  </ReactMarkdown>
-                </div>
-              </div>
-            </div>
-            </div>
-          )}
-
-          {structured && mode === "structured" && (
-            <div className="space-y-4">
-              <button
-                onClick={handleBackToUpload}
-                className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-                </svg>
-                Back to Upload
-              </button>
-              <div className="bg-gray-800 rounded-xl overflow-hidden border border-gray-700">
-              <div className="flex items-center justify-between px-6 py-4 bg-gradient-to-r from-indigo-600 to-indigo-700">
-                <div>
-                  <h3 className="text-lg font-semibold text-white">
-                    Executive Summary
-                  </h3>
-                  <p className="text-xs text-white/80">{structured.filename}</p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => copyText(structured?.executive_summary)}
-                    className="bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-lg text-sm transition-colors"
-                  >
-                    Copy
-                  </button>
-                  <button
-                    onClick={() =>
-                      downloadText(
-                        structured.executive_summary,
-                        `${structured.filename || "summary"}-executive.txt`
-                      )
-                    }
-                    className="bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-lg text-sm transition-colors"
-                  >
-                    Download
-                  </button>
-                </div>
-              </div>
-              <div className="p-6">
-                <div className="text-gray-200 leading-relaxed whitespace-pre-line mb-6">
-                  {structured.executive_summary}
-                </div>
-                <div className="grid sm:grid-cols-2 gap-6">
-                  <div>
-                    <h4 className="font-semibold mb-3 text-white">Bullets</h4>
-                    <ul className="list-disc list-inside space-y-2 text-gray-300">
-                      {(structured.bullets || []).map((b, i) => (
-                        <li key={i}>{b}</li>
-                      ))}
-                    </ul>
-                  </div>
-                  <div>
-                    <h4 className="font-semibold mb-3 text-white">
-                      Highlights
-                    </h4>
-                    <ul className="list-disc list-inside space-y-2 text-gray-300">
-                      {(structured.highlights || []).map((h, i) => (
-                        <li key={i} className="italic">
-                          {h}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                </div>
-                <div className="mt-6 flex gap-2">
-                  <button
-                    onClick={() => exportData("json")}
-                    className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg text-sm transition-colors"
-                  >
-                    Export JSON
-                  </button>
-                  <button
-                    onClick={() => exportData("txt")}
-                    className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg text-sm transition-colors"
-                  >
-                    Export TXT
-                  </button>
-                  <button
-                    onClick={() => exportData("csv")}
-                    className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg text-sm transition-colors"
-                  >
-                    Export CSV
-                  </button>
-                </div>
-              </div>
-            </div>
-            </div>
-          )}
-
-          {multiResult && mode === "multi" && (
-            <div className="space-y-6">
-              <button
-                onClick={handleBackToUpload}
-                className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-                </svg>
-                Back to Upload
-              </button>
-              {(multiResult.items || []).map((item, idx) => (
-                <div
-                  key={idx}
-                  className="bg-gray-800 rounded-xl overflow-hidden border border-gray-700"
+          {/* Library View */}
+          {view === "library" && (
+            <div>
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-3xl font-bold text-white">My PDF Library</h2>
+                <button
+                  onClick={loadPDFs}
+                  className="text-gray-400 hover:text-white transition"
                 >
-                  <div className="px-6 py-4 bg-gradient-to-r from-indigo-600 to-indigo-700">
-                    <h3 className="text-lg font-semibold text-white">
-                      {item.filename}
-                    </h3>
-                  </div>
-                  <div className="p-6">
-                    <h4 className="font-semibold mb-2 text-white">
-                      Executive Summary
-                    </h4>
-                    <p className="whitespace-pre-line text-gray-300 mb-4">
-                      {item.executive_summary}
-                    </p>
-                    <div className="grid sm:grid-cols-2 gap-6">
-                      <div>
-                        <h4 className="font-semibold mb-2 text-white">
-                          Bullets
-                        </h4>
-                        <ul className="list-disc list-inside space-y-1 text-gray-300">
-                          {(item.bullets || []).map((b, i) => (
-                            <li key={i}>{b}</li>
-                          ))}
-                        </ul>
-                      </div>
-                      <div>
-                        <h4 className="font-semibold mb-2 text-white">
-                          Highlights
-                        </h4>
-                        <ul className="list-disc list-inside space-y-1 text-gray-300">
-                          {(item.highlights || []).map((h, i) => (
-                            <li key={i} className="italic">
-                              {h}
-                            </li>
-                          ))}
-                        </ul>
+                  🔄 Refresh
+                </button>
+              </div>
+
+              {pdfList.length === 0 ? (
+                <div className="text-center py-16">
+                  <div className="text-6xl mb-4">📄</div>
+                  <p className="text-gray-400 text-lg">No PDFs yet. Upload your first PDF!</p>
+                  <button
+                    onClick={() => setView("upload")}
+                    className="mt-4 bg-red-600 hover:bg-red-700 text-white px-6 py-3 rounded-lg transition"
+                  >
+                    Upload PDF
+                  </button>
+                </div>
+              ) : (
+                <div className="grid gap-4">
+                  {pdfList.map((pdf) => (
+                    <div
+                      key={pdf.id}
+                      className="bg-gray-800 rounded-xl p-6 border border-gray-700 hover:border-red-500 transition cursor-pointer"
+                      onClick={() => handleSelectPDF(pdf)}
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <h3 className="text-white font-semibold text-lg mb-2">
+                            {pdf.original_filename}
+                          </h3>
+                          <div className="flex gap-4 text-sm text-gray-400">
+                            <span>📦 {(pdf.file_size / 1024 / 1024).toFixed(2)} MB</span>
+                            <span>📅 {new Date(pdf.uploaded_at).toLocaleDateString()}</span>
+                            <span>📝 {pdf.summary_count || 0} summaries</span>
+                          </div>
+                        </div>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeletePDF(pdf.id);
+                          }}
+                          className="text-red-400 hover:text-red-300 px-3 py-1 rounded transition"
+                        >
+                          🗑️ Delete
+                        </button>
                       </div>
                     </div>
-                  </div>
+                  ))}
                 </div>
-              ))}
-              <div className="bg-gray-800 rounded-xl overflow-hidden border border-gray-700">
-                <div className="px-6 py-4 bg-gradient-to-r from-indigo-600 to-indigo-700">
-                  <h3 className="text-lg font-semibold text-white">
-                    Ringkasan Gabungan
+              )}
+            </div>
+          )}
+
+          {/* History View - Show existing summaries */}
+          {view === "history" && selectedPDF && (
+            <div>
+              <div className="mb-6">
+                <button
+                  onClick={() => setView("library")}
+                  className="text-gray-400 hover:text-white mb-4 flex items-center gap-2"
+                >
+                  ← Back to Library
+                </button>
+                <h2 className="text-3xl font-bold text-white mb-2">Summary History</h2>
+                <p className="text-gray-400">{selectedPDF.original_filename}</p>
+              </div>
+
+              <div className="mb-6">
+                <button
+                  onClick={() => setView("config")}
+                  className="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-semibold px-6 py-3 rounded-lg transition"
+                >
+                  ➕ Generate New Summary
+                </button>
+              </div>
+
+              {summaryHistory.length === 0 ? (
+                <div className="text-center py-16 bg-gray-800 rounded-xl">
+                  <div className="text-6xl mb-4">📋</div>
+                  <p className="text-gray-400 text-lg mb-4">No summaries yet for this PDF</p>
+                  <button
+                    onClick={() => setView("config")}
+                    className="bg-red-600 hover:bg-red-700 text-white px-6 py-3 rounded-lg transition"
+                  >
+                    Create First Summary
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {summaryHistory.map((item) => (
+                    <div
+                      key={item.id}
+                      className="bg-gray-800 rounded-xl p-6 border border-gray-700 hover:border-purple-500 transition"
+                    >
+                      <div className="flex items-start justify-between mb-4">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-3 mb-2">
+                            <span className="px-3 py-1 bg-purple-500/20 text-purple-300 rounded-full text-sm font-medium">
+                              {item.mode}
+                            </span>
+                            <span className="text-gray-400 text-sm">
+                              {item.language}
+                            </span>
+                            {item.pages_processed && (
+                              <span className="text-gray-400 text-sm">
+                                Pages: {item.pages_processed}
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-gray-400 text-sm">
+                            Created: {new Date(item.created_at).toLocaleString()} • 
+                            Processing: {item.processing_time?.toFixed(2)}s
+                          </p>
+                          {item.qa_question && (
+                            <p className="text-gray-300 text-sm mt-2">
+                              Q: {item.qa_question}
+                            </p>
+                          )}
+                        </div>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => handleViewSummary(item)}
+                            className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg text-sm transition"
+                          >
+                            👁️ View
+                          </button>
+                          <button
+                            onClick={() => handleDeleteSummary(item.id)}
+                            className="bg-red-500/20 hover:bg-red-500/30 text-red-300 px-4 py-2 rounded-lg text-sm transition"
+                          >
+                            🗑️
+                          </button>
+                        </div>
+                      </div>
+                      
+                      {/* Preview */}
+                      <div className="text-gray-300 text-sm line-clamp-2">
+                        {item.summary_text && item.summary_text.substring(0, 150)}
+                        {item.executive_summary && item.executive_summary.substring(0, 150)}
+                        {item.qa_answer && item.qa_answer.substring(0, 150)}
+                        ...
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Upload View */}
+          {view === "upload" && (
+            <div>
+              <h2 className="text-3xl font-bold text-white mb-6">Upload New PDF</h2>
+              <label
+                htmlFor="file-upload"
+                className="block border-2 border-dashed border-purple-500 rounded-2xl p-16 hover:border-purple-400 transition cursor-pointer bg-gray-800/50"
+              >
+                <div className="text-center">
+                  <div className="mx-auto w-16 h-16 bg-blue-500/20 rounded-full flex items-center justify-center mb-4">
+                    <svg className="w-8 h-8 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                    </svg>
+                  </div>
+                  <h3 className="text-white text-xl font-semibold mb-2">
+                    {file ? file.name : "Drag & drop PDF file"}
                   </h3>
+                  <p className="text-gray-400 text-sm mb-4">Maximum 10MB</p>
+                  <input
+                    id="file-upload"
+                    type="file"
+                    className="hidden"
+                    accept=".pdf"
+                    onChange={handleFileChange}
+                  />
                 </div>
-                <div className="p-6">
-                  <div className="text-gray-200 leading-relaxed prose prose-invert max-w-none">
-                    <ReactMarkdown components={MarkdownComponents}>
-                      {multiResult.combined_summary}
-                    </ReactMarkdown>
-                  </div>
+              </label>
+
+              {file && (
+                <div className="mt-6 text-center">
+                  <button
+                    onClick={handleUpload}
+                    disabled={loading}
+                    className="bg-emerald-500 hover:bg-emerald-600 text-white font-semibold px-8 py-3 rounded-lg disabled:opacity-50 transition"
+                  >
+                    {loading ? "Uploading..." : "Upload PDF"}
+                  </button>
                 </div>
-              </div>
+              )}
             </div>
           )}
 
-          {qaAnswer && mode === "qa" && (
-            <div className="space-y-4">
-              <button
-                onClick={handleBackToUpload}
-                className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-                </svg>
-                Back to Upload
-              </button>
-              <div className="bg-gray-800 rounded-xl overflow-hidden border border-gray-700">
-              <div className="px-6 py-4 bg-gradient-to-r from-indigo-600 to-indigo-700">
-                <h3 className="text-lg font-semibold text-white">Jawaban</h3>
-              </div>
-              <div className="p-6">
-                <p className="whitespace-pre-line text-gray-200">{qaAnswer}</p>
-              </div>
-            </div>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Configuration Menu */}
-      {showConfigMenu && files.length > 0 && (
-        <div className="fixed inset-0 bg-black/80 flex items-start justify-center z-50 p-4 overflow-y-auto">
-          <div className="bg-gray-800 rounded-2xl max-w-4xl w-full my-8 shadow-2xl">
-            {/* Header */}
-            <div className="bg-gray-900 px-6 py-4 flex items-center justify-between border-b border-gray-700">
-              <div className="flex-1">
-                <p className="text-gray-400 text-sm mb-1">Press save to continue</p>
-                <div className="bg-gray-700 rounded-full h-2 w-full">
-                  <div className="bg-gray-600 h-2 rounded-full w-0"></div>
-                </div>
-              </div>
-              <button
-                onClick={handleSaveAndContinue}
-                className="ml-6 bg-emerald-500 hover:bg-emerald-600 text-white font-semibold px-8 py-3 rounded-xl transition-colors"
-              >
-                Save & continue
-              </button>
-            </div>
-
-            <div className="p-8 space-y-8">
-              {/* Title */}
+          {/* Configuration View */}
+          {view === "config" && selectedPDF && (
+            <div className="bg-gray-800 rounded-2xl p-8 space-y-6">
               <div>
-                <label className="text-white text-lg font-semibold mb-3 block">
-                  Title
-                </label>
-                <input
-                  type="text"
-                  value={files[0]?.name || ""}
-                  readOnly
-                  className="w-full bg-gray-700 text-white border border-gray-600 rounded-xl px-4 py-3 text-sm"
-                />
+                <button
+                  onClick={() => summaryHistory.length > 0 ? setView("history") : setView("library")}
+                  className="text-gray-400 hover:text-white mb-4 flex items-center gap-2"
+                >
+                  ← Back
+                </button>
+                <h2 className="text-2xl font-bold text-white mb-2">Generate New Summary</h2>
+                <p className="text-gray-400">PDF: {selectedPDF.original_filename}</p>
               </div>
 
-              {/* Mode Selection */}
               <div>
-                <label className="text-white text-lg font-semibold mb-3 block">
-                  Select Mode
-                </label>
+                <label className="text-white text-lg font-semibold mb-3 block">Mode</label>
                 <select
-                  className="w-full bg-gray-700 text-white border border-gray-600 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  className="w-full bg-gray-700 text-white border border-gray-600 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-purple-500"
                   value={mode}
                   onChange={(e) => setMode(e.target.value)}
                 >
-                  <option value="simple">Concise</option>
-                  <option value="structured">Executive &amp; bullets</option>
-                  <option value="multi">Multi PDF</option>
-                  <option value="qa">Q&amp;A</option>
+                  <option value="simple">Simple Summary</option>
+                  <option value="structured">Structured Summary</option>
+                  <option value="qa">Question & Answer</option>
                 </select>
               </div>
 
-              {/* Q&A Question Input */}
               {mode === "qa" && (
                 <div>
-                  <label className="text-white text-lg font-semibold mb-3 block">
-                    Your Question
-                  </label>
+                  <label className="text-white text-lg font-semibold mb-3 block">Question</label>
                   <input
                     type="text"
-                    value={qaQuestion}
-                    onChange={(e) => setQaQuestion(e.target.value)}
-                    placeholder="Tulis pertanyaan berdasarkan isi PDF"
-                    className="w-full bg-gray-700 text-white border border-gray-600 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    value={question}
+                    onChange={(e) => setQuestion(e.target.value)}
+                    placeholder="Enter your question"
+                    className="w-full bg-gray-700 text-white border border-gray-600 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-purple-500"
                   />
                 </div>
               )}
 
-              {/* Language */}
               <div>
-                <label className="text-white text-lg font-semibold mb-3 block">
-                  What language do you want us to create in?
-                </label>
+                <label className="text-white text-lg font-semibold mb-3 block">Language</label>
                 <select
                   value={language}
                   onChange={(e) => setLanguage(e.target.value)}
-                  className="w-full bg-gray-700 text-white border border-gray-600 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  className="w-full bg-gray-700 text-white border border-gray-600 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-purple-500"
                 >
                   <option value="english">English</option>
                   <option value="indonesian">Indonesian</option>
@@ -724,106 +593,164 @@ export default function Home() {
                 </select>
               </div>
 
-              {/* Page Range */}
               <div>
-                <label className="text-white text-lg font-semibold mb-3 block">
-                  What pages would you like?
-                </label>
-                <div className="flex gap-4">
+                <label className="text-white text-lg font-semibold mb-3 block">Page Range</label>
+                <div className="flex gap-4 mb-3">
                   <button
                     onClick={() => setPageRange("all")}
-                    className={`flex-1 px-6 py-3 rounded-xl border-2 font-medium transition-all ${
+                    className={`flex-1 px-6 py-3 rounded-xl border-2 font-medium transition ${
                       pageRange === "all"
                         ? "border-purple-500 bg-purple-500/10 text-white"
-                        : "border-gray-600 bg-gray-700/50 text-gray-300 hover:border-gray-500"
+                        : "border-gray-600 bg-gray-700/50 text-gray-300"
                     }`}
                   >
                     All pages
                   </button>
                   <button
                     onClick={() => setPageRange("custom")}
-                    className={`flex-1 px-6 py-3 rounded-xl border-2 font-medium transition-all ${
+                    className={`flex-1 px-6 py-3 rounded-xl border-2 font-medium transition ${
                       pageRange === "custom"
                         ? "border-purple-500 bg-purple-500/10 text-white"
-                        : "border-gray-600 bg-gray-700/50 text-gray-300 hover:border-gray-500"
+                        : "border-gray-600 bg-gray-700/50 text-gray-300"
                     }`}
                   >
-                    Custom range
+                    Custom
                   </button>
-                  {pageRange === "custom" && (
-                    <input
-                      type="text"
-                      value={customPages}
-                      onChange={(e) => setCustomPages(e.target.value)}
-                      placeholder="1-5, 7, 9"
-                      className="flex-1 bg-gray-700 text-white border border-gray-600 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
-                    />
+                </div>
+                {pageRange === "custom" && (
+                  <input
+                    type="text"
+                    value={customPages}
+                    onChange={(e) => setCustomPages(e.target.value)}
+                    placeholder="e.g., 1-5, 7, 9"
+                    className="w-full bg-gray-700 text-white border border-gray-600 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  />
+                )}
+              </div>
+
+              <button
+                onClick={handleSummarize}
+                disabled={loading}
+                className="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-semibold px-8 py-3 rounded-lg disabled:opacity-50 transition"
+              >
+                {loading ? "Processing..." : "Generate Summary"}
+              </button>
+            </div>
+          )}
+
+          {/* Result View */}
+          {view === "result" && summary && (
+            <div className="space-y-4">
+              <button
+                onClick={() => setView("history")}
+                className="flex items-center gap-2 text-gray-400 hover:text-white transition"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                </svg>
+                Back to History
+              </button>
+
+              <div className="bg-gray-800 rounded-xl overflow-hidden border border-gray-700">
+                <div className="flex items-center justify-between px-6 py-4 bg-gradient-to-r from-red-600 to-red-700">
+                  <div>
+                    <h3 className="text-lg font-semibold text-white">
+                      {mode === "simple" && "Simple Summary"}
+                      {mode === "structured" && "Structured Summary"}
+                      {mode === "qa" && "Q&A Result"}
+                    </h3>
+                    <p className="text-xs text-white/80">{selectedPDF?.original_filename}</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() =>
+                        copyText(
+                          summary.summary_text || summary.executive_summary || summary.qa_answer
+                        )
+                      }
+                      className="bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-lg text-sm transition"
+                    >
+                      Copy
+                    </button>
+                    <button
+                      onClick={() =>
+                        downloadText(
+                          summary.summary_text || summary.executive_summary || summary.qa_answer,
+                          `${selectedPDF?.original_filename}-summary.txt`
+                        )
+                      }
+                      className="bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-lg text-sm transition"
+                    >
+                      Download
+                    </button>
+                  </div>
+                </div>
+
+                <div className="p-6">
+                  <div className="mb-3 text-sm text-gray-400">
+                    Processing time: {summary.processing_time?.toFixed(2)}s
+                  </div>
+
+                  {/* Simple Mode */}
+                  {mode === "simple" && summary.summary_text && (
+                    <div className="text-gray-200 leading-relaxed prose prose-invert max-w-none">
+                      <ReactMarkdown components={MarkdownComponents}>
+                        {summary.summary_text}
+                      </ReactMarkdown>
+                    </div>
+                  )}
+
+                  {/* Structured Mode */}
+                  {mode === "structured" && (
+                    <div>
+                      <div className="mb-6">
+                        <h4 className="font-semibold mb-2 text-white">Executive Summary</h4>
+                        <p className="text-gray-200 leading-relaxed whitespace-pre-line">
+                          {summary.executive_summary}
+                        </p>
+                      </div>
+                      <div className="grid sm:grid-cols-2 gap-6">
+                        <div>
+                          <h4 className="font-semibold mb-3 text-white">Key Points</h4>
+                          <ul className="list-disc list-inside space-y-2 text-gray-300">
+                            {summary.bullets &&
+                              JSON.parse(summary.bullets).map((b, i) => <li key={i}>{b}</li>)}
+                          </ul>
+                        </div>
+                        <div>
+                          <h4 className="font-semibold mb-3 text-white">Highlights</h4>
+                          <ul className="list-disc list-inside space-y-2 text-gray-300">
+                            {summary.highlights &&
+                              JSON.parse(summary.highlights).map((h, i) => (
+                                <li key={i} className="italic">{h}</li>
+                              ))}
+                          </ul>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* QA Mode */}
+                  {mode === "qa" && (
+                    <div>
+                      <div className="mb-4">
+                        <h4 className="font-semibold mb-2 text-white">Question:</h4>
+                        <p className="text-gray-300">{summary.qa_question}</p>
+                      </div>
+                      <div>
+                        <h4 className="font-semibold mb-2 text-white">Answer:</h4>
+                        <p className="text-gray-200 leading-relaxed whitespace-pre-line">
+                          {summary.qa_answer}
+                        </p>
+                      </div>
+                    </div>
                   )}
                 </div>
               </div>
             </div>
-          </div>
+          )}
         </div>
-      )}
-
-      {/* Confirmation Modal */}
-      {showConfirmModal && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-          <div className="bg-gray-800 rounded-2xl max-w-2xl w-full p-8 shadow-2xl">
-            <div className="text-center mb-6">
-              <h2 className="text-2xl font-semibold text-white mb-2">
-                Please confirm this is the file you'd like to upload
-              </h2>
-              <p className="text-gray-400 text-sm">
-                The uploading may take a few seconds depending on file size.
-              </p>
-            </div>
-
-            <div className="bg-gray-700/50 rounded-xl p-4 mb-6 max-h-60 overflow-y-auto">
-              {pendingFiles.map((file, idx) => (
-                <div
-                  key={idx}
-                  className="flex items-center gap-3 p-3 bg-gray-700 rounded-lg mb-2 last:mb-0"
-                >
-                  <div className="w-12 h-12 bg-red-600 rounded-lg flex items-center justify-center flex-shrink-0">
-                    <svg
-                      className="w-7 h-7 text-white"
-                      viewBox="0 0 24 24"
-                      fill="currentColor"
-                    >
-                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6z" />
-                      <path d="M14 2v6h6" />
-                    </svg>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-white font-medium truncate">
-                      {file.name}
-                    </p>
-                    <p className="text-gray-400 text-xs">
-                      {(file.size / 1024 / 1024).toFixed(2)} MB
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <div className="flex flex-col gap-3">
-              <button
-                onClick={confirmUpload}
-                className="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-semibold px-6 py-3 rounded-xl transition-colors"
-              >
-                Confirm
-              </button>
-              <button
-                onClick={cancelUpload}
-                className="w-full bg-transparent hover:bg-gray-700 text-gray-300 hover:text-white font-medium px-6 py-3 rounded-xl transition-colors"
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      </div>
     </div>
   );
 }

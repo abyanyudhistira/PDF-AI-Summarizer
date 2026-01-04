@@ -30,7 +30,7 @@ func Connect() {
 		log.Fatal("Failed to connect to database:", err)
 	}
 
-	log.Println("✅ Database connected successfully")
+	log.Println("Database connected successfully")
 }
 
 func Migrate() {

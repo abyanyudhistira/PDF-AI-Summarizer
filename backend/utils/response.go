@@ -1,7 +1,7 @@
 package utils
 
 import (
-	"github.com/gin-gonic/gin"
+	"github.com/gofiber/fiber/v2"
 )
 
 type Response struct {
@@ -11,16 +11,16 @@ type Response struct {
 	Error   string      `json:"error,omitempty"`
 }
 
-func SuccessResponse(c *gin.Context, statusCode int, message string, data interface{}) {
-	c.JSON(statusCode, Response{
+func SuccessResponse(c *fiber.Ctx, statusCode int, message string, data interface{}) error {
+	return c.Status(statusCode).JSON(Response{
 		Success: true,
 		Message: message,
 		Data:    data,
 	})
 }
 
-func ErrorResponse(c *gin.Context, statusCode int, message string) {
-	c.JSON(statusCode, Response{
+func ErrorResponse(c *fiber.Ctx, statusCode int, message string) error {
+	return c.Status(statusCode).JSON(Response{
 		Success: false,
 		Error:   message,
 	})
