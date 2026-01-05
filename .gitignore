@@ -1,7 +1,13 @@
-# Environment variables
-*.env
+# Environment variables - JANGAN COMMIT FILE INI!
+.env
 .env.local
 .env.*.local
+backend/.env
+ai-service/.env
+frontend/.env.local
+
+# TAPI .env.example BOLEH di-commit (sebagai template)
+!.env.example
 
 # OS files
 .DS_Store
