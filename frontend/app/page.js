@@ -24,6 +24,29 @@ import {
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
 
+// Utility function for safe date formatting
+const formatDate = (dateString) => {
+  if (!dateString) return 'N/A';
+  try {
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return 'Invalid Date';
+    return date.toLocaleDateString();
+  } catch (error) {
+    return 'Invalid Date';
+  }
+};
+
+const formatDateTime = (dateString) => {
+  if (!dateString) return 'N/A';
+  try {
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return 'Invalid Date';
+    return date.toLocaleString();
+  } catch (error) {
+    return 'Invalid Date';
+  }
+};
+
 // API Client
 const api = {
   async getPDFs() {
@@ -394,7 +417,7 @@ export default function Home() {
                           </h3>
                           <div className="flex gap-4 text-sm text-gray-400">
                             <span><FontAwesomeIcon icon={faFileAlt} className="mr-1" />{(pdf.file_size / 1024 / 1024).toFixed(2)} MB</span>
-                            <span><FontAwesomeIcon icon={faCalendar} className="mr-1" />{new Date(pdf.uploaded_at).toLocaleDateString()}</span>
+                            <span><FontAwesomeIcon icon={faCalendar} className="mr-1" />{formatDate(pdf.uploaded_at)}</span>
                             <span><FontAwesomeIcon icon={faFileLines} className="mr-1" />{pdf.summary_count || 0} summaries</span>
                           </div>
                         </div>
@@ -474,7 +497,7 @@ export default function Home() {
                             )}
                           </div>
                           <p className="text-gray-400 text-sm">
-                            Created: {new Date(item.created_at).toLocaleString()} • 
+                            Created: {formatDateTime(item.created_at)} • 
                             Processing: {item.processing_time?.toFixed(2)}s
                           </p>
                           {item.qa_question && (

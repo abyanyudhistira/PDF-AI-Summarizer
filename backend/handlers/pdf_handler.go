@@ -79,6 +79,7 @@ func ListPDFs(c *fiber.Ctx) error {
 			FileSizeMB:       utils.GetFileSizeMB(pdf.FileSize),
 			TotalPages:       pdf.TotalPages,
 			UploadDate:       pdf.UploadDate,
+			UploadedAt:       pdf.UploadDate, // Set both for compatibility
 			SummaryCount:     summaryCount,
 		})
 	}
@@ -105,6 +106,7 @@ func GetPDF(c *fiber.Ctx) error {
 		FileSizeMB:       utils.GetFileSizeMB(pdf.FileSize),
 		TotalPages:       pdf.TotalPages,
 		UploadDate:       pdf.UploadDate,
+		UploadedAt:       pdf.UploadDate, // Set both for compatibility
 		SummaryCount:     summaryCount,
 	}
 

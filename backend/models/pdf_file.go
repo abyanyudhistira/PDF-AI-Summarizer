@@ -27,5 +27,6 @@ type PDFFileResponse struct {
 	FileSizeMB       float64   `json:"file_size_mb"`
 	TotalPages       *int      `json:"total_pages"`
 	UploadDate       time.Time `json:"upload_date"`
+	UploadedAt       time.Time `json:"uploaded_at"` // Add alias for frontend
 	SummaryCount     int64     `json:"summary_count"`
 }
