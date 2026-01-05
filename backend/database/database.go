@@ -37,6 +37,9 @@ func Migrate() {
 	err := DB.AutoMigrate(
 		&models.PDFFile{},
 		&models.Summary{},
+		&models.RequestLog{},
+		&models.SystemMetric{},
+		&models.ErrorLog{},
 	)
 
 	if err != nil {

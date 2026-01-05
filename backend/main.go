@@ -5,6 +5,7 @@ import (
 	"pdf-summarizer-backend/config"
 	"pdf-summarizer-backend/database"
 	"pdf-summarizer-backend/handlers"
+	"pdf-summarizer-backend/middleware"
 	"pdf-summarizer-backend/utils"
 
 	"github.com/gofiber/fiber/v2"
@@ -37,6 +38,8 @@ func main() {
 	// Middleware
 	app.Use(recover.New())
 	app.Use(logger.New())
+	app.Use(middleware.MonitoringMiddleware())
+	app.Use(middleware.ErrorLoggingMiddleware())
 	app.Use(cors.New(cors.Config{
 		AllowOrigins: "*",
 		AllowMethods: "GET,POST,PUT,DELETE,OPTIONS",
@@ -72,9 +75,18 @@ func main() {
 	summaries.Get("/:summaryId", handlers.GetSummary)
 	summaries.Delete("/:summaryId", handlers.DeleteSummary)
 
+	// Monitoring routes
+	monitoring := api.Group("/monitoring")
+	monitoring.Get("/stats", handlers.GetMonitoringStats)
+	monitoring.Get("/requests", handlers.GetRequestLogs)
+	monitoring.Get("/errors", handlers.GetErrorLogs)
+	monitoring.Get("/metrics", handlers.GetSystemMetrics)
+	monitoring.Post("/metrics/record", handlers.RecordSystemMetric)
+	monitoring.Delete("/logs/clear", handlers.ClearOldLogs)
+
 	// Start server
 	port := config.AppConfig.Port
-	log.Printf("🚀 Server starting on port %s", port)
+	log.Printf("Server starting on port %s", port)
 	if err := app.Listen(":" + port); err != nil {
 		log.Fatal("Failed to start server:", err)
 	}

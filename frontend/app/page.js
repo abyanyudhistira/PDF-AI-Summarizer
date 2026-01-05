@@ -2,6 +2,25 @@
 
 import { useState, useEffect } from "react";
 import ReactMarkdown from "react-markdown";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import {
+  faFilePdf,
+  faBook,
+  faUpload,
+  faTrash,
+  faSync,
+  faEye,
+  faCopy,
+  faDownload,
+  faArrowLeft,
+  faPlus,
+  faCloudUploadAlt,
+  faFileAlt,
+  faCalendar,
+  faFileLines,
+  faStar,
+  faExclamationCircle,
+} from "@fortawesome/free-solid-svg-icons";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
 
@@ -254,10 +273,7 @@ export default function Home() {
         <div className="mb-8">
           <div className="flex items-center gap-3 mb-4">
             <div className="w-12 h-12 bg-red-600 rounded-lg flex items-center justify-center">
-              <svg className="w-8 h-8 text-white" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6z" />
-                <path d="M14 2v6h6" />
-              </svg>
+              <FontAwesomeIcon icon={faFilePdf} className="text-3xl text-white" />
             </div>
             <h1 className="text-2xl font-bold text-white">AI PDF Summarizer</h1>
           </div>
@@ -274,7 +290,8 @@ export default function Home() {
               view === "library" ? "bg-red-600 text-white" : "text-gray-300 hover:bg-gray-700"
             }`}
           >
-            📚 My Library
+            <FontAwesomeIcon icon={faBook} className="mr-2" />
+            My Library
           </button>
           <button
             onClick={() => setView("upload")}
@@ -282,15 +299,14 @@ export default function Home() {
               view === "upload" ? "bg-red-600 text-white" : "text-gray-300 hover:bg-gray-700"
             }`}
           >
-            ⬆️ Upload PDF
+            <FontAwesomeIcon icon={faUpload} className="mr-2" />
+            Upload PDF
           </button>
         </div>
 
         <div className="border-t border-gray-700 pt-6">
           <div className="flex items-center gap-2 mb-4">
-            <svg className="w-5 h-5 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
-              <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-            </svg>
+            <FontAwesomeIcon icon={faStar} className="text-yellow-400" />
             <h3 className="text-white font-semibold">Features</h3>
           </div>
           <div className="space-y-4">
@@ -329,9 +345,7 @@ export default function Home() {
           {error && (
             <div className="rounded-lg bg-red-900/50 border border-red-500 p-4 mb-6">
               <div className="flex items-start gap-3">
-                <svg className="h-5 w-5 text-red-400 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                </svg>
+                <FontAwesomeIcon icon={faExclamationCircle} className="text-red-400 mt-1" />
                 <div>
                   <h3 className="text-red-400 font-medium">Error</h3>
                   <p className="text-red-300 text-sm mt-1">{error}</p>
@@ -349,13 +363,14 @@ export default function Home() {
                   onClick={loadPDFs}
                   className="text-gray-400 hover:text-white transition"
                 >
-                  🔄 Refresh
+                  <FontAwesomeIcon icon={faSync} className="mr-2" />
+                  Refresh
                 </button>
               </div>
 
               {pdfList.length === 0 ? (
                 <div className="text-center py-16">
-                  <div className="text-6xl mb-4">📄</div>
+                  <FontAwesomeIcon icon={faFilePdf} className="text-6xl text-gray-600 mb-4" />
                   <p className="text-gray-400 text-lg">No PDFs yet. Upload your first PDF!</p>
                   <button
                     onClick={() => setView("upload")}
@@ -378,9 +393,9 @@ export default function Home() {
                             {pdf.original_filename}
                           </h3>
                           <div className="flex gap-4 text-sm text-gray-400">
-                            <span>📦 {(pdf.file_size / 1024 / 1024).toFixed(2)} MB</span>
-                            <span>📅 {new Date(pdf.uploaded_at).toLocaleDateString()}</span>
-                            <span>📝 {pdf.summary_count || 0} summaries</span>
+                            <span><FontAwesomeIcon icon={faFileAlt} className="mr-1" />{(pdf.file_size / 1024 / 1024).toFixed(2)} MB</span>
+                            <span><FontAwesomeIcon icon={faCalendar} className="mr-1" />{new Date(pdf.uploaded_at).toLocaleDateString()}</span>
+                            <span><FontAwesomeIcon icon={faFileLines} className="mr-1" />{pdf.summary_count || 0} summaries</span>
                           </div>
                         </div>
                         <button
@@ -390,7 +405,8 @@ export default function Home() {
                           }}
                           className="text-red-400 hover:text-red-300 px-3 py-1 rounded transition"
                         >
-                          🗑️ Delete
+                          <FontAwesomeIcon icon={faTrash} className="mr-1" />
+                          Delete
                         </button>
                       </div>
                     </div>
@@ -419,13 +435,14 @@ export default function Home() {
                   onClick={() => setView("config")}
                   className="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-semibold px-6 py-3 rounded-lg transition"
                 >
-                  ➕ Generate New Summary
+                  <FontAwesomeIcon icon={faPlus} className="mr-2" />
+                  Generate New Summary
                 </button>
               </div>
 
               {summaryHistory.length === 0 ? (
                 <div className="text-center py-16 bg-gray-800 rounded-xl">
-                  <div className="text-6xl mb-4">📋</div>
+                  <FontAwesomeIcon icon={faFileLines} className="text-6xl text-gray-600 mb-4" />
                   <p className="text-gray-400 text-lg mb-4">No summaries yet for this PDF</p>
                   <button
                     onClick={() => setView("config")}
@@ -471,13 +488,14 @@ export default function Home() {
                             onClick={() => handleViewSummary(item)}
                             className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg text-sm transition"
                           >
-                            👁️ View
+                            <FontAwesomeIcon icon={faEye} className="mr-1" />
+                            View
                           </button>
                           <button
                             onClick={() => handleDeleteSummary(item.id)}
                             className="bg-red-500/20 hover:bg-red-500/30 text-red-300 px-4 py-2 rounded-lg text-sm transition"
                           >
-                            🗑️
+                            <FontAwesomeIcon icon={faTrash} />
                           </button>
                         </div>
                       </div>
@@ -506,9 +524,7 @@ export default function Home() {
               >
                 <div className="text-center">
                   <div className="mx-auto w-16 h-16 bg-blue-500/20 rounded-full flex items-center justify-center mb-4">
-                    <svg className="w-8 h-8 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                    </svg>
+                    <FontAwesomeIcon icon={faCloudUploadAlt} className="text-4xl text-blue-400" />
                   </div>
                   <h3 className="text-white text-xl font-semibold mb-2">
                     {file ? file.name : "Drag & drop PDF file"}
@@ -645,9 +661,7 @@ export default function Home() {
                 onClick={() => setView("history")}
                 className="flex items-center gap-2 text-gray-400 hover:text-white transition"
               >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-                </svg>
+                <FontAwesomeIcon icon={faArrowLeft} />
                 Back to History
               </button>
 
@@ -670,6 +684,7 @@ export default function Home() {
                       }
                       className="bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-lg text-sm transition"
                     >
+                      <FontAwesomeIcon icon={faCopy} className="mr-2" />
                       Copy
                     </button>
                     <button
@@ -681,6 +696,7 @@ export default function Home() {
                       }
                       className="bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-lg text-sm transition"
                     >
+                      <FontAwesomeIcon icon={faDownload} className="mr-2" />
                       Download
                     </button>
                   </div>
