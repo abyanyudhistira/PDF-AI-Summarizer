@@ -11,14 +11,14 @@
 
 ## ✨ Features
 
-- 🤖 **AI Summarization** - Google Gemini 2.5 Flash with temperature 0.3 for accuracy
-- � **4 Stummary Modes** - Simple, Structured, Q&A
-- 🌍 **Multi-Language** - 15+ languages (English, Indonesian, Spanish, French, German, etc.)
-- � **Page Slelection** - Summarize specific pages (e.g., 1-5, 7, 9)
-- 🔄 **Job Queue System** - RabbitMQ with auto-retry (max 3x) and Dead Letter Queue
-- 📝 **Audit Logging** - Track all API requests with async processing
-- 💾 **Summary History** - View past summaries with PostgreSQL trigger auto-update
-- 📥 **Export** - Copy or download summaries
+- **AI Summarization** - Google Gemini 2.5 Flash with temperature 0.3 for accuracy
+- **4 Stummary Modes** - Simple, Structured, Q&A
+- **Multi-Language** - 15+ languages (English, Indonesian, Spanish, French, German, etc.)
+- **Page Slelection** - Summarize specific pages (e.g., 1-5, 7, 9)
+- **Job Queue System** - RabbitMQ with auto-retry (max 3x) and Dead Letter Queue
+- **Audit Logging** - Track all API requests with async processing
+- **Summary History** - View past summaries with PostgreSQL trigger auto-update
+- **Export** - Copy or download summaries
 
 ## 🏗️ Architecture
 
@@ -142,15 +142,6 @@ pdf-ai-summarizer/
 ├── docker-compose.yml  # All services
 └── .env                # Configuration (gitignored)
 ```
-
-## 🔒 Security
-
-⚠️ **Never commit `.env` to Git** - Already in `.gitignore`
-
-If accidentally exposed:
-1. Revoke API key at [Google AI Studio](https://aistudio.google.com/app/apikey)
-2. Generate new key
-3. Remove from Git: `git rm --cached .env && git commit -m "Remove .env"`
 
 ## 🚢 Production
 
