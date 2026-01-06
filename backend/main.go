@@ -5,6 +5,8 @@ import (
 	"pdf-summarizer-backend/config"
 	"pdf-summarizer-backend/database"
 	"pdf-summarizer-backend/handlers"
+	"pdf-summarizer-backend/middleware"
+	"pdf-summarizer-backend/queue"
 	"pdf-summarizer-backend/utils"
 	"pdf-summarizer-backend/worker"
 
@@ -29,8 +31,15 @@ func main() {
 	// Run migrations
 	database.Migrate()
 
-	// Start background worker for job processing
-	go worker.StartWorker()
+	// Connect to RabbitMQ
+	if err := queue.Connect(); err != nil {
+		log.Fatal("Failed to connect to RabbitMQ:", err)
+	}
+	defer queue.Close()
+
+	// Start background workers
+	go worker.StartWorker()      // Job processor
+	go worker.StartAuditWorker() // Audit log processor
 
 	// Setup Fiber app
 	app := fiber.New(fiber.Config{
@@ -41,6 +50,7 @@ func main() {
 	// Middleware
 	app.Use(recover.New())
 	app.Use(logger.New())
+	app.Use(middleware.AuditMiddleware()) // Audit logging
 	app.Use(cors.New(cors.Config{
 		AllowOrigins: "*",
 		AllowMethods: "GET,POST,PUT,DELETE,OPTIONS",
@@ -84,12 +94,20 @@ func main() {
 	jobs.Post("/:jobId/retry", handlers.RetryJob)       // Retry failed job
 	jobs.Delete("/:jobId", handlers.DeleteJob)          // Delete job
 
+	// Audit Log routes
+	audit := api.Group("/audit")
+	audit.Get("/logs", handlers.ListAuditLogs)                 // List audit logs
+	audit.Get("/stats", handlers.GetAuditStats)                // Get statistics
+	audit.Delete("/logs/cleanup", handlers.DeleteOldAuditLogs) // Cleanup old logs
+
 	// Start server
 	port := config.AppConfig.Port
 	log.Printf("🚀 Server starting on port %s", port)
-	log.Printf("📊 Database: 3 tables (pdf_files, summary_logs, summarization_jobs)")
+	log.Printf("📊 Database: 4 tables (pdf_files, summary_logs, summarization_jobs, audit_logs)")
 	log.Printf("⚡ Trigger: Auto-update latest summary on pdf_files")
-	log.Printf("🔄 Worker: Background job processor running")
+	log.Printf("🐰 RabbitMQ: Connected and consuming jobs")
+	log.Printf("🔄 Worker: Job processor running")
+	log.Printf("📝 Worker: Audit log processor running")
 	if err := app.Listen(":" + port); err != nil {
 		log.Fatal("Failed to start server:", err)
 	}

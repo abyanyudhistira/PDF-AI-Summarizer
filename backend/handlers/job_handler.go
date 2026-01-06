@@ -2,8 +2,10 @@ package handlers
 
 import (
 	"fmt"
+	"log"
 	"pdf-summarizer-backend/database"
 	"pdf-summarizer-backend/models"
+	"pdf-summarizer-backend/queue"
 	"pdf-summarizer-backend/utils"
 	"strconv"
 	"time"
@@ -67,6 +69,12 @@ func CreateSummarizationJob(c *fiber.Ctx) error {
 
 	if err := database.DB.Create(&job).Error; err != nil {
 		return utils.ErrorResponse(c, fiber.StatusInternalServerError, "Failed to create job")
+	}
+
+	// Publish job to RabbitMQ queue
+	if err := queue.PublishJob(job.ID); err != nil {
+		log.Printf("Failed to publish job to queue: %v", err)
+		// Job is created but not queued - can be retried manually
 	}
 
 	// Return job info
@@ -211,30 +219,11 @@ func DeleteJob(c *fiber.Ctx) error {
 	return utils.SuccessResponse(c, fiber.StatusOK, "Job deleted successfully", nil)
 }
 
-// ProcessPendingJobs processes all pending jobs (called by worker)
-func ProcessPendingJobs() error {
-	var jobs []models.SummarizationJob
-
-	// Get all pending jobs
-	if err := database.DB.Where("status = ?", models.JobStatusPending).
-		Order("created_at ASC").
-		Limit(10). // Process max 10 jobs at a time
-		Find(&jobs).Error; err != nil {
-		return err
-	}
-
-	for _, job := range jobs {
-		go processJob(job.ID) // Process in background
-	}
-
-	return nil
-}
-
-// processJob processes a single job
-func processJob(jobID uint) {
+// ProcessJob processes a single job (called by worker)
+func ProcessJob(jobID uint) error {
 	var job models.SummarizationJob
 	if err := database.DB.Preload("PDFFile").First(&job, jobID).Error; err != nil {
-		return
+		return err
 	}
 
 	// Update status to processing
@@ -270,7 +259,7 @@ func processJob(jobID uint) {
 		}
 
 		database.DB.Save(&job)
-		return
+		return err
 	}
 
 	// Save summary to database
@@ -315,7 +304,7 @@ func processJob(jobID uint) {
 		job.ErrorMsg = &errMsg
 		job.Status = models.JobStatusFailed
 		database.DB.Save(&job)
-		return
+		return err
 	}
 
 	// Update job as completed
@@ -324,4 +313,6 @@ func processJob(jobID uint) {
 	job.CompletedAt = &completedAt
 	job.SummaryLogID = &summaryLog.ID
 	database.DB.Save(&job)
+	
+	return nil
 }

@@ -36,11 +36,12 @@ func Connect() {
 func Migrate() {
 	log.Println("Running database migrations...")
 
-	// Auto-migrate 3 tables: pdf_files, summary_logs, and summarization_jobs
+	// Auto-migrate 4 tables: pdf_files, summary_logs, summarization_jobs, audit_logs
 	err := DB.AutoMigrate(
 		&models.PDFFile{},
 		&models.SummaryLog{},
 		&models.SummarizationJob{},
+		&models.AuditLog{},
 	)
 
 	if err != nil {

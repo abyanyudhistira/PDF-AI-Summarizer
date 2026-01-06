@@ -1,22 +1,67 @@
 package worker
 
 import (
+	"encoding/json"
 	"log"
 	"pdf-summarizer-backend/handlers"
-	"time"
+	"pdf-summarizer-backend/queue"
+
+	amqp "github.com/rabbitmq/amqp091-go"
 )
 
-// StartWorker starts background job processor
+// StartWorker starts RabbitMQ consumer
 func StartWorker() {
-	log.Println("Starting background job worker...")
+	log.Println("🔄 Starting RabbitMQ job consumer...")
 
-	// Process jobs every 5 seconds
-	ticker := time.NewTicker(5 * time.Second)
-	defer ticker.Stop()
+	// Get messages from queue
+	msgs, err := queue.Channel.Consume(
+		queue.QueueName, // queue
+		"",              // consumer
+		false,           // auto-ack (manual ack for retry)
+		false,           // exclusive
+		false,           // no-local
+		false,           // no-wait
+		nil,             // args
+	)
+	if err != nil {
+		log.Fatal("Failed to register consumer:", err)
+	}
 
-	for range ticker.C {
-		if err := handlers.ProcessPendingJobs(); err != nil {
-			log.Printf("Error processing jobs: %v", err)
+	// Process messages
+	forever := make(chan bool)
+
+	go func() {
+		for msg := range msgs {
+			processMessage(msg)
 		}
+	}()
+
+	log.Println("✅ Worker started. Waiting for jobs...")
+	<-forever
+}
+
+func processMessage(msg amqp.Delivery) {
+	var jobMsg queue.JobMessage
+	
+	err := json.Unmarshal(msg.Body, &jobMsg)
+	if err != nil {
+		log.Printf("❌ Failed to parse message: %v", err)
+		msg.Nack(false, false) // Don't requeue invalid messages
+		return
+	}
+
+	log.Printf("📥 Processing job %d", jobMsg.JobID)
+
+	// Process the job
+	err = handlers.ProcessJob(jobMsg.JobID)
+	
+	if err != nil {
+		log.Printf("❌ Job %d failed: %v", jobMsg.JobID, err)
+		// Nack with requeue - RabbitMQ will retry or send to DLQ
+		msg.Nack(false, true)
+	} else {
+		log.Printf("✅ Job %d completed successfully", jobMsg.JobID)
+		// Acknowledge successful processing
+		msg.Ack(false)
 	}
 }
