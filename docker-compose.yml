@@ -20,6 +20,27 @@ services:
       timeout: 5s
       retries: 5
 
+  # RabbitMQ Message Broker
+  rabbitmq:
+    image: rabbitmq:3.13-management
+    container_name: pdf_summarizer_rabbitmq
+    restart: always
+    ports:
+      - "5672:5672"   # AMQP port
+      - "15672:15672" # Management UI
+    environment:
+      - RABBITMQ_DEFAULT_USER=admin
+      - RABBITMQ_DEFAULT_PASS=admin123
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    networks:
+      - pdf_network
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   # Backend (Golang)
   backend:
     build:
@@ -40,10 +61,13 @@ services:
       - AI_SERVICE_URL=http://ai-service:8000
       - MAX_FILE_SIZE=10485760
       - UPLOAD_DIR=/app/uploads
+      - RABBITMQ_URL=amqp://admin:admin123@rabbitmq:5672/
     volumes:
       - backend_uploads:/app/uploads
     depends_on:
       db:
+        condition: service_healthy
+      rabbitmq:
         condition: service_healthy
       ai-service:
         condition: service_started
@@ -84,6 +108,7 @@ services:
 
 volumes:
   postgres_data:
+  rabbitmq_data:
   backend_uploads:
   ai_uploads:
 

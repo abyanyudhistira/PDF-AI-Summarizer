@@ -182,14 +182,35 @@ def summarize_text(text: str, target_language: str = None) -> str:
         if not target_language:
             target_language = detect_language(truncated_text)
         
-        prompt = f"""
-        Please summarize the following document in clear, concise paragraphs.
-        Respond strictly in {target_language}.
-        Highlight key ideas and structure the summary for readability.
+        # Language-specific instructions
+        lang_examples = {
+            "English": "Example: 'This document discusses...'",
+            "Indonesian": "Contoh: 'Dokumen ini membahas...'",
+            "Spanish": "Ejemplo: 'Este documento discute...'",
+            "French": "Exemple: 'Ce document traite de...'",
+            "German": "Beispiel: 'Dieses Dokument behandelt...'"
+        }
+        
+        example = lang_examples.get(target_language, f"Write in {target_language}")
+        
+        prompt = f"""You are a professional document summarizer.
 
-        Document content:
-        {truncated_text}
-        """
+ABSOLUTE REQUIREMENT: Write your ENTIRE response in {target_language} language ONLY.
+- Do NOT mix languages
+- Do NOT use English if the target is not English
+- Do NOT translate back to the source language
+- EVERY word must be in {target_language}
+
+{example}
+
+Task: Summarize the following document in clear, concise paragraphs in {target_language}.
+
+Document:
+{truncated_text}
+
+OUTPUT LANGUAGE: {target_language} ONLY
+"""
+        
         response = gemini_model.generate_content(prompt)
         return response.text
     except Exception as e:
@@ -203,14 +224,34 @@ def summarize_hierarchical(text: str, target_language: str = None) -> str:
         if not target_language:
             target_language = detect_language(truncated_text)
         
-        prompt = f"""
-        Please provide a hierarchical summary of the following document. 
-        Structure the summary with main topics, subtopics, and key details using nested bullet points.
-        Respond strictly in {target_language}.
+        # Language-specific instructions
+        lang_examples = {
+            "English": "Example: '• Main Topic\n  - Subtopic 1\n  - Subtopic 2'",
+            "Indonesian": "Contoh: '• Topik Utama\n  - Subtopik 1\n  - Subtopik 2'",
+            "Spanish": "Ejemplo: '• Tema Principal\n  - Subtema 1\n  - Subtema 2'",
+            "French": "Exemple: '• Sujet Principal\n  - Sous-sujet 1\n  - Sous-sujet 2'",
+            "German": "Beispiel: '• Hauptthema\n  - Unterthema 1\n  - Unterthema 2'"
+        }
         
-        Document content:
-        {truncated_text}
-        """
+        example = lang_examples.get(target_language, f"Write in {target_language}")
+        
+        prompt = f"""You are a professional document analyst.
+
+ABSOLUTE REQUIREMENT: Write your ENTIRE response in {target_language} language ONLY.
+- Do NOT mix languages
+- Do NOT use English if the target is not English
+- EVERY word, heading, and bullet point must be in {target_language}
+
+{example}
+
+Task: Create a hierarchical summary with main topics and subtopics in {target_language}.
+
+Document:
+{truncated_text}
+
+OUTPUT LANGUAGE: {target_language} ONLY
+"""
+        
         response = gemini_model.generate_content(prompt)
         return response.text
     except Exception as e:
@@ -223,15 +264,60 @@ def summarize_structured(text: str, target_language: str = None) -> dict:
     if not target_language:
         target_language = detect_language(truncated_text)
     
-    prompt = f"""
-    You are a professional analyst. Read the document and respond ONLY as JSON.
-    Keys: executive_summary (string), bullets (array of strings 5-10 items),
-    highlights (array of the 5 most important sentences verbatim).
-    Respond strictly in {target_language}.
+    # Language-specific JSON examples
+    lang_examples = {
+        "English": '''{
+  "executive_summary": "This document discusses...",
+  "bullets": ["First key point", "Second key point"],
+  "highlights": ["Important sentence one", "Important sentence two"]
+}''',
+        "Indonesian": '''{
+  "executive_summary": "Dokumen ini membahas...",
+  "bullets": ["Poin kunci pertama", "Poin kunci kedua"],
+  "highlights": ["Kalimat penting satu", "Kalimat penting dua"]
+}''',
+        "Spanish": '''{
+  "executive_summary": "Este documento discute...",
+  "bullets": ["Primer punto clave", "Segundo punto clave"],
+  "highlights": ["Primera oración importante", "Segunda oración importante"]
+}''',
+        "French": '''{
+  "executive_summary": "Ce document traite de...",
+  "bullets": ["Premier point clé", "Deuxième point clé"],
+  "highlights": ["Première phrase importante", "Deuxième phrase importante"]
+}''',
+        "German": '''{
+  "executive_summary": "Dieses Dokument behandelt...",
+  "bullets": ["Erster Schlüsselpunkt", "Zweiter Schlüsselpunkt"],
+  "highlights": ["Erster wichtiger Satz", "Zweiter wichtiger Satz"]
+}'''
+    }
+    
+    example = lang_examples.get(target_language, f"Write all text in {target_language}")
+    
+    prompt = f"""You are a professional analyst. Respond ONLY with valid JSON.
 
-    Document:
-    {truncated_text}
-    """
+ABSOLUTE REQUIREMENT: ALL text in the JSON must be in {target_language} language ONLY.
+- executive_summary: Write in {target_language}
+- bullets: Write in {target_language}
+- highlights: Write in {target_language}
+- Do NOT mix languages
+- Do NOT use English if the target is not English
+
+Example JSON format in {target_language}:
+{example}
+
+Task: Analyze the document and create JSON with:
+- executive_summary: Comprehensive summary (3-5 sentences) in {target_language}
+- bullets: Array of 5-10 key points in {target_language}
+- highlights: Array of 5 most important sentences verbatim in {target_language}
+
+Document:
+{truncated_text}
+
+OUTPUT: Valid JSON with ALL text in {target_language} language ONLY
+"""
+    
     try:
         response = gemini_model.generate_content(prompt)
         data = extract_json(response.text or "")
@@ -256,17 +342,60 @@ def summarize_structured_hierarchical(text: str, target_language: str = None) ->
     if not target_language:
         target_language = detect_language(truncated_text)
     
-    prompt = f"""
-    You are a professional analyst. Read the documents and respond ONLY as JSON.
-    Use a hierarchical approach to organize information.
-    Keys: executive_summary (string with hierarchical structure), 
-    bullets (array of strings 5-8 items with hierarchical structure),
-    highlights (array of the 5 most important sentences verbatim).
-    Respond strictly in {target_language}.
+    # Language-specific JSON examples
+    lang_examples = {
+        "English": '''{
+  "executive_summary": "Main Topic:\\n- Subtopic 1\\n- Subtopic 2",
+  "bullets": ["First hierarchical point", "Second hierarchical point"],
+  "highlights": ["Important sentence one", "Important sentence two"]
+}''',
+        "Indonesian": '''{
+  "executive_summary": "Topik Utama:\\n- Subtopik 1\\n- Subtopik 2",
+  "bullets": ["Poin hierarkis pertama", "Poin hierarkis kedua"],
+  "highlights": ["Kalimat penting satu", "Kalimat penting dua"]
+}''',
+        "Spanish": '''{
+  "executive_summary": "Tema Principal:\\n- Subtema 1\\n- Subtema 2",
+  "bullets": ["Primer punto jerárquico", "Segundo punto jerárquico"],
+  "highlights": ["Primera oración importante", "Segunda oración importante"]
+}''',
+        "French": '''{
+  "executive_summary": "Sujet Principal:\\n- Sous-sujet 1\\n- Sous-sujet 2",
+  "bullets": ["Premier point hiérarchique", "Deuxième point hiérarchique"],
+  "highlights": ["Première phrase importante", "Deuxième phrase importante"]
+}''',
+        "German": '''{
+  "executive_summary": "Hauptthema:\\n- Unterthema 1\\n- Unterthema 2",
+  "bullets": ["Erster hierarchischer Punkt", "Zweiter hierarchischer Punkt"],
+  "highlights": ["Erster wichtiger Satz", "Zweiter wichtiger Satz"]
+}'''
+    }
+    
+    example = lang_examples.get(target_language, f"Write all text in {target_language}")
+    
+    prompt = f"""You are a professional analyst. Respond ONLY with valid JSON.
 
-    Documents:
-    {truncated_text}
-    """
+ABSOLUTE REQUIREMENT: ALL text in the JSON must be in {target_language} language ONLY.
+- executive_summary: Hierarchical structure in {target_language}
+- bullets: Hierarchical key points in {target_language}
+- highlights: Important sentences in {target_language}
+- Do NOT mix languages
+- Do NOT use English if the target is not English
+
+Example JSON format in {target_language}:
+{example}
+
+Task: Analyze the documents using hierarchical approach and create JSON with:
+- executive_summary: Hierarchical summary with main topics and subtopics in {target_language}
+- bullets: Array of 5-8 hierarchical key points in {target_language}
+- highlights: Array of 5 most important sentences verbatim in {target_language}
+
+Documents:
+{truncated_text}
+
+OUTPUT: Valid JSON with ALL text in {target_language} language ONLY
+"""
+    
     try:
         response = gemini_model.generate_content(prompt)
         data = extract_json(response.text or "")
@@ -327,7 +456,11 @@ async def summarize_pdf(
     
     combined_text = "\n\n--- Next Document ---\n\n".join(all_texts)
     
-    target_language = language.capitalize() if language and language != "english" else detect_language(combined_text)
+    # Use user-selected language or auto-detect
+    if language and language.strip():
+        target_language = language.capitalize()
+    else:
+        target_language = detect_language(combined_text)
     
     if len(files) > 1:
         summary = summarize_hierarchical(combined_text, target_language)
@@ -365,7 +498,11 @@ async def summarize_pdf_structured(
     
     combined_text = "\n\n--- Next Document ---\n\n".join(all_texts)
     
-    target_language = language.capitalize() if language and language != "english" else detect_language(combined_text)
+    # Use user-selected language or auto-detect
+    if language and language.strip():
+        target_language = language.capitalize()
+    else:
+        target_language = detect_language(combined_text)
     
     if len(files) > 1:
         result = summarize_structured_hierarchical(combined_text, target_language)
@@ -407,7 +544,11 @@ async def summarize_multi(
         text = extract_text_from_pdf(io.BytesIO(content), page_numbers)
         combined_texts.append(text)
         
-        target_language = language.capitalize() if language and language != "english" else detect_language(text)
+        # Use user-selected language or auto-detect
+        if language and language.strip():
+            target_language = language.capitalize()
+        else:
+            target_language = detect_language(text)
         
         if len(files) > 1:
             res = summarize_structured_hierarchical(text, target_language)
@@ -426,7 +567,11 @@ async def summarize_multi(
     
     combined_text = "\n\n".join(combined_texts)
     
-    target_language = language.capitalize() if language and language != "english" else detect_language(combined_text)
+    # Use user-selected language or auto-detect
+    if language and language.strip():
+        target_language = language.capitalize()
+    else:
+        target_language = detect_language(combined_text)
     
     if len(files) > 1:
         combined_summary = summarize_hierarchical(combined_text, target_language)
@@ -468,19 +613,45 @@ async def qa_pdf(
     
     combined_text = "\n\n--- Next Document ---\n\n".join(all_texts)
     
-    target_language = language.capitalize() if language and language != "english" else detect_language(combined_text)
+    # Use user-selected language or auto-detect
+    if language and language.strip():
+        target_language = language.capitalize()
+    else:
+        target_language = detect_language(combined_text)
     
-    prompt = f"""
-    Answer the question based ONLY on the document(s) below.
-    Respond strictly in {target_language}.
-    Provide a concise, factual answer; if uncertain, say you cannot find it.
+    # Language-specific examples
+    lang_examples = {
+        "English": "Example: 'Based on the document, the answer is...'",
+        "Indonesian": "Contoh: 'Berdasarkan dokumen, jawabannya adalah...'",
+        "Spanish": "Ejemplo: 'Según el documento, la respuesta es...'",
+        "French": "Exemple: 'Selon le document, la réponse est...'",
+        "German": "Beispiel: 'Laut dem Dokument lautet die Antwort...'"
+    }
+    
+    example = lang_examples.get(target_language, f"Answer in {target_language}")
+    
+    prompt = f"""You are a helpful AI assistant.
 
-    Document(s):
-    {combined_text[:30000]}
+ABSOLUTE REQUIREMENT: Write your ENTIRE answer in {target_language} language ONLY.
+- Do NOT mix languages
+- Do NOT use English if the target is not English
+- EVERY word in your answer must be in {target_language}
 
-    Question:
-    {question}
-    """
+{example}
+
+Task: Answer the question based ONLY on the document(s) below.
+- Provide a concise, factual answer in {target_language}
+- If you cannot find the answer, say so in {target_language}
+
+Document(s):
+{combined_text[:30000]}
+
+Question:
+{question}
+
+OUTPUT LANGUAGE: {target_language} ONLY
+"""
+    
     try:
         response = gemini_model.generate_content(prompt)
         return QAResponse(answer=response.text or "")

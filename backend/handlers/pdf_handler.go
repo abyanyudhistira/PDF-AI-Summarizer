@@ -70,7 +70,7 @@ func ListPDFs(c *fiber.Ctx) error {
 	var responses []models.PDFFileResponse
 	for _, pdf := range pdfs {
 		var summaryCount int64
-		database.DB.Model(&models.Summary{}).Where("pdf_file_id = ?", pdf.ID).Count(&summaryCount)
+		database.DB.Model(&models.SummaryLog{}).Where("pdf_file_id = ?", pdf.ID).Count(&summaryCount)
 
 		responses = append(responses, models.PDFFileResponse{
 			ID:               pdf.ID,
@@ -79,7 +79,18 @@ func ListPDFs(c *fiber.Ctx) error {
 			FileSizeMB:       utils.GetFileSizeMB(pdf.FileSize),
 			TotalPages:       pdf.TotalPages,
 			UploadDate:       pdf.UploadDate,
-			UploadedAt:       pdf.UploadDate, // Set both for compatibility
+			UploadedAt:       pdf.UploadDate,
+			Mode:             pdf.Mode,
+			Language:         pdf.Language,
+			PagesProcessed:   pdf.PagesProcessed,
+			SummaryText:      pdf.SummaryText,
+			ExecutiveSummary: pdf.ExecutiveSummary,
+			Bullets:          pdf.Bullets,
+			Highlights:       pdf.Highlights,
+			QAQuestion:       pdf.QAQuestion,
+			QAAnswer:         pdf.QAAnswer,
+			ProcessingTime:   pdf.ProcessingTime,
+			LastSummarizedAt: pdf.LastSummarizedAt,
 			SummaryCount:     summaryCount,
 		})
 	}
@@ -97,7 +108,7 @@ func GetPDF(c *fiber.Ctx) error {
 	}
 
 	var summaryCount int64
-	database.DB.Model(&models.Summary{}).Where("pdf_file_id = ?", pdf.ID).Count(&summaryCount)
+	database.DB.Model(&models.SummaryLog{}).Where("pdf_file_id = ?", pdf.ID).Count(&summaryCount)
 
 	response := models.PDFFileResponse{
 		ID:               pdf.ID,
@@ -106,7 +117,18 @@ func GetPDF(c *fiber.Ctx) error {
 		FileSizeMB:       utils.GetFileSizeMB(pdf.FileSize),
 		TotalPages:       pdf.TotalPages,
 		UploadDate:       pdf.UploadDate,
-		UploadedAt:       pdf.UploadDate, // Set both for compatibility
+		UploadedAt:       pdf.UploadDate,
+		Mode:             pdf.Mode,
+		Language:         pdf.Language,
+		PagesProcessed:   pdf.PagesProcessed,
+		SummaryText:      pdf.SummaryText,
+		ExecutiveSummary: pdf.ExecutiveSummary,
+		Bullets:          pdf.Bullets,
+		Highlights:       pdf.Highlights,
+		QAQuestion:       pdf.QAQuestion,
+		QAAnswer:         pdf.QAAnswer,
+		ProcessingTime:   pdf.ProcessingTime,
+		LastSummarizedAt: pdf.LastSummarizedAt,
 		SummaryCount:     summaryCount,
 	}
 
@@ -139,7 +161,7 @@ func GetPDFStats(c *fiber.Ctx) error {
 	var totalSummaries int64
 
 	database.DB.Model(&models.PDFFile{}).Count(&totalPDFs)
-	database.DB.Model(&models.Summary{}).Count(&totalSummaries)
+	database.DB.Model(&models.SummaryLog{}).Count(&totalSummaries)
 
 	stats := fiber.Map{
 		"total_pdfs":      totalPDFs,

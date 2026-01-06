@@ -5,8 +5,8 @@ import (
 	"pdf-summarizer-backend/config"
 	"pdf-summarizer-backend/database"
 	"pdf-summarizer-backend/handlers"
-	"pdf-summarizer-backend/middleware"
 	"pdf-summarizer-backend/utils"
+	"pdf-summarizer-backend/worker"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
@@ -29,6 +29,9 @@ func main() {
 	// Run migrations
 	database.Migrate()
 
+	// Start background worker for job processing
+	go worker.StartWorker()
+
 	// Setup Fiber app
 	app := fiber.New(fiber.Config{
 		AppName: "PDF Summarizer API",
@@ -38,8 +41,6 @@ func main() {
 	// Middleware
 	app.Use(recover.New())
 	app.Use(logger.New())
-	app.Use(middleware.MonitoringMiddleware())
-	app.Use(middleware.ErrorLoggingMiddleware())
 	app.Use(cors.New(cors.Config{
 		AllowOrigins: "*",
 		AllowMethods: "GET,POST,PUT,DELETE,OPTIONS",
@@ -66,7 +67,8 @@ func main() {
 	pdfs.Get("/stats/count", handlers.GetPDFStats)
 	
 	// PDF Summarization routes
-	pdfs.Post("/:id/summarize", handlers.SummarizePDF)
+	pdfs.Post("/:id/summarize", handlers.SummarizePDF)           // Sync (old way)
+	pdfs.Post("/:id/summarize-async", handlers.CreateSummarizationJob) // Async (new way with queue)
 	pdfs.Get("/:id/summaries", handlers.ListSummaries)
 
 	// Summary routes
@@ -75,18 +77,19 @@ func main() {
 	summaries.Get("/:summaryId", handlers.GetSummary)
 	summaries.Delete("/:summaryId", handlers.DeleteSummary)
 
-	// Monitoring routes
-	monitoring := api.Group("/monitoring")
-	monitoring.Get("/stats", handlers.GetMonitoringStats)
-	monitoring.Get("/requests", handlers.GetRequestLogs)
-	monitoring.Get("/errors", handlers.GetErrorLogs)
-	monitoring.Get("/metrics", handlers.GetSystemMetrics)
-	monitoring.Post("/metrics/record", handlers.RecordSystemMetric)
-	monitoring.Delete("/logs/clear", handlers.ClearOldLogs)
+	// Job Queue routes
+	jobs := api.Group("/jobs")
+	jobs.Get("/", handlers.ListJobs)                    // List all jobs with filters
+	jobs.Get("/:jobId", handlers.GetJob)                // Get job status
+	jobs.Post("/:jobId/retry", handlers.RetryJob)       // Retry failed job
+	jobs.Delete("/:jobId", handlers.DeleteJob)          // Delete job
 
 	// Start server
 	port := config.AppConfig.Port
-	log.Printf("Server starting on port %s", port)
+	log.Printf("🚀 Server starting on port %s", port)
+	log.Printf("📊 Database: 3 tables (pdf_files, summary_logs, summarization_jobs)")
+	log.Printf("⚡ Trigger: Auto-update latest summary on pdf_files")
+	log.Printf("🔄 Worker: Background job processor running")
 	if err := app.Listen(":" + port); err != nil {
 		log.Fatal("Failed to start server:", err)
 	}

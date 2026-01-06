@@ -19,6 +19,7 @@ type Config struct {
 	AIServiceURL  string
 	MaxFileSize   int64
 	UploadDir     string
+	RabbitMQURL   string
 }
 
 var AppConfig *Config

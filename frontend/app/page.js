@@ -260,6 +260,15 @@ export default function Home() {
 
       const result = await api.summarizePDF(selectedPDF.id, options);
       setSummary(result.data);
+      
+      // Reload summary history after successful summarization
+      try {
+        const historyResult = await api.getSummaries(selectedPDF.id);
+        setSummaryHistory(historyResult.data || []);
+      } catch (err) {
+        console.error("Failed to reload summary history:", err);
+      }
+      
       setView("result");
     } catch (err) {
       setError(err.message);
@@ -444,7 +453,11 @@ export default function Home() {
             <div>
               <div className="mb-6">
                 <button
-                  onClick={() => setView("library")}
+                  onClick={async () => {
+                    // Reload PDF list to update summary counts
+                    await loadPDFs();
+                    setView("library");
+                  }}
                   className="text-gray-400 hover:text-white mb-4 flex items-center gap-2"
                 >
                   ← Back to Library
@@ -582,7 +595,20 @@ export default function Home() {
             <div className="bg-gray-800 rounded-2xl p-8 space-y-6">
               <div>
                 <button
-                  onClick={() => summaryHistory.length > 0 ? setView("history") : setView("library")}
+                  onClick={async () => {
+                    // Reload summary history before going back
+                    if (summaryHistory.length > 0) {
+                      try {
+                        const result = await api.getSummaries(selectedPDF.id);
+                        setSummaryHistory(result.data || []);
+                      } catch (err) {
+                        console.error("Failed to reload summaries:", err);
+                      }
+                      setView("history");
+                    } else {
+                      setView("library");
+                    }
+                  }}
                   className="text-gray-400 hover:text-white mb-4 flex items-center gap-2"
                 >
                   ← Back
@@ -681,7 +707,16 @@ export default function Home() {
           {view === "result" && summary && (
             <div className="space-y-4">
               <button
-                onClick={() => setView("history")}
+                onClick={async () => {
+                  // Reload summary history before going back
+                  try {
+                    const result = await api.getSummaries(selectedPDF.id);
+                    setSummaryHistory(result.data || []);
+                  } catch (err) {
+                    console.error("Failed to reload summaries:", err);
+                  }
+                  setView("history");
+                }}
                 className="flex items-center gap-2 text-gray-400 hover:text-white transition"
               >
                 <FontAwesomeIcon icon={faArrowLeft} />

@@ -68,8 +68,8 @@ func SummarizePDF(c *fiber.Ctx) error {
 	// Calculate processing time
 	processingTime := time.Since(startTime).Seconds()
 
-	// Save summary to database
-	summary := models.Summary{
+	// Save summary to database (will trigger auto-update on pdf_files)
+	summaryLog := models.SummaryLog{
 		PDFFileID:      pdf.ID,
 		Mode:           models.SummaryMode(req.Mode),
 		Language:       getLanguage(req.Language),
@@ -81,56 +81,56 @@ func SummarizePDF(c *fiber.Ctx) error {
 	switch req.Mode {
 	case "simple":
 		if summaryText, ok := result["summary"].(string); ok {
-			summary.SummaryText = &summaryText
+			summaryLog.SummaryText = &summaryText
 		}
 	case "structured":
 		if execSummary, ok := result["executive_summary"].(string); ok {
-			summary.ExecutiveSummary = &execSummary
+			summaryLog.ExecutiveSummary = &execSummary
 		}
 		if bullets, ok := result["bullets"].([]interface{}); ok {
 			bulletsJSON, _ := json.Marshal(bullets)
 			bulletsStr := string(bulletsJSON)
-			summary.Bullets = &bulletsStr
+			summaryLog.Bullets = &bulletsStr
 		}
 		if highlights, ok := result["highlights"].([]interface{}); ok {
 			highlightsJSON, _ := json.Marshal(highlights)
 			highlightsStr := string(highlightsJSON)
-			summary.Highlights = &highlightsStr
+			summaryLog.Highlights = &highlightsStr
 		}
 	case "multi":
 		if combinedSummary, ok := result["combined_summary"].(string); ok {
-			summary.SummaryText = &combinedSummary
+			summaryLog.SummaryText = &combinedSummary
 		}
 		if execSummary, ok := result["executive_summary"].(string); ok {
-			summary.ExecutiveSummary = &execSummary
+			summaryLog.ExecutiveSummary = &execSummary
 		}
 	case "qa":
 		if answer, ok := result["answer"].(string); ok {
-			summary.QAAnswer = &answer
+			summaryLog.QAAnswer = &answer
 		}
-		summary.QAQuestion = req.Question
+		summaryLog.QAQuestion = req.Question
 	}
 
-	// Save to database
-	if err := database.DB.Create(&summary).Error; err != nil {
+	// Save to database (trigger will auto-update pdf_files table)
+	if err := database.DB.Create(&summaryLog).Error; err != nil {
 		return utils.ErrorResponse(c, fiber.StatusInternalServerError, "Failed to save summary")
 	}
 
 	// Prepare response
-	response := models.SummaryResponse{
-		ID:               summary.ID,
-		PDFFileID:        summary.PDFFileID,
-		Mode:             summary.Mode,
-		Language:         summary.Language,
-		PagesProcessed:   summary.PagesProcessed,
-		SummaryText:      summary.SummaryText,
-		ExecutiveSummary: summary.ExecutiveSummary,
-		Bullets:          summary.Bullets,
-		Highlights:       summary.Highlights,
-		QAQuestion:       summary.QAQuestion,
-		QAAnswer:         summary.QAAnswer,
-		ProcessingTime:   summary.ProcessingTime,
-		CreatedAt:        summary.CreatedAt,
+	response := models.SummaryLogResponse{
+		ID:               summaryLog.ID,
+		PDFFileID:        summaryLog.PDFFileID,
+		Mode:             summaryLog.Mode,
+		Language:         summaryLog.Language,
+		PagesProcessed:   summaryLog.PagesProcessed,
+		SummaryText:      summaryLog.SummaryText,
+		ExecutiveSummary: summaryLog.ExecutiveSummary,
+		Bullets:          summaryLog.Bullets,
+		Highlights:       summaryLog.Highlights,
+		QAQuestion:       summaryLog.QAQuestion,
+		QAAnswer:         summaryLog.QAAnswer,
+		ProcessingTime:   summaryLog.ProcessingTime,
+		CreatedAt:        summaryLog.CreatedAt,
 	}
 
 	return utils.SuccessResponse(c, fiber.StatusCreated, "Summary created successfully", response)
@@ -228,18 +228,18 @@ func getLanguage(lang *string) string {
 	return "english"
 }
 
-// ListSummaries returns list of summaries for a specific PDF
+// ListSummaries returns list of summary history for a specific PDF
 func ListSummaries(c *fiber.Ctx) error {
 	pdfID := c.Params("id")
 
-	var summaries []models.Summary
+	var summaries []models.SummaryLog
 	if err := database.DB.Where("pdf_file_id = ?", pdfID).Order("created_at DESC").Find(&summaries).Error; err != nil {
 		return utils.ErrorResponse(c, fiber.StatusInternalServerError, "Failed to fetch summaries")
 	}
 
-	var responses []models.SummaryResponse
+	var responses []models.SummaryLogResponse
 	for _, summary := range summaries {
-		responses = append(responses, models.SummaryResponse{
+		responses = append(responses, models.SummaryLogResponse{
 			ID:               summary.ID,
 			PDFFileID:        summary.PDFFileID,
 			Mode:             summary.Mode,
@@ -259,16 +259,16 @@ func ListSummaries(c *fiber.Ctx) error {
 	return utils.SuccessResponse(c, fiber.StatusOK, "Summaries fetched successfully", responses)
 }
 
-// GetSummary returns a specific summary
+// GetSummary returns a specific summary from history
 func GetSummary(c *fiber.Ctx) error {
 	summaryID := c.Params("summaryId")
 
-	var summary models.Summary
-	if err := database.DB.Preload("PDFFile").First(&summary, summaryID).Error; err != nil {
+	var summary models.SummaryLog
+	if err := database.DB.First(&summary, summaryID).Error; err != nil {
 		return utils.ErrorResponse(c, fiber.StatusNotFound, "Summary not found")
 	}
 
-	response := models.SummaryResponse{
+	response := models.SummaryLogResponse{
 		ID:               summary.ID,
 		PDFFileID:        summary.PDFFileID,
 		Mode:             summary.Mode,
@@ -287,11 +287,11 @@ func GetSummary(c *fiber.Ctx) error {
 	return utils.SuccessResponse(c, fiber.StatusOK, "Summary fetched successfully", response)
 }
 
-// DeleteSummary deletes a specific summary
+// DeleteSummary deletes a specific summary from history
 func DeleteSummary(c *fiber.Ctx) error {
 	summaryID := c.Params("summaryId")
 
-	var summary models.Summary
+	var summary models.SummaryLog
 	if err := database.DB.First(&summary, summaryID).Error; err != nil {
 		return utils.ErrorResponse(c, fiber.StatusNotFound, "Summary not found")
 	}
@@ -309,14 +309,14 @@ func GetAllSummaries(c *fiber.Ctx) error {
 	limit, _ := strconv.Atoi(c.Query("limit", "50"))
 	offset := (page - 1) * limit
 
-	var summaries []models.Summary
-	if err := database.DB.Preload("PDFFile").Order("created_at DESC").Offset(offset).Limit(limit).Find(&summaries).Error; err != nil {
+	var summaries []models.SummaryLog
+	if err := database.DB.Order("created_at DESC").Offset(offset).Limit(limit).Find(&summaries).Error; err != nil {
 		return utils.ErrorResponse(c, fiber.StatusInternalServerError, "Failed to fetch summaries")
 	}
 
-	var responses []models.SummaryResponse
+	var responses []models.SummaryLogResponse
 	for _, summary := range summaries {
-		responses = append(responses, models.SummaryResponse{
+		responses = append(responses, models.SummaryLogResponse{
 			ID:               summary.ID,
 			PDFFileID:        summary.PDFFileID,
 			Mode:             summary.Mode,

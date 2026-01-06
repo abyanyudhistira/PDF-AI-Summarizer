@@ -64,6 +64,8 @@
    ```env
    GEMINI_API_KEY=your_gemini_api_key_here
    ```
+   
+   > ⚠️ **IMPORTANT**: Never commit `.env` file to Git! It's already in `.gitignore` to protect your API keys.
 
 3. **Start all services with Docker**
    ```bash
@@ -363,3 +365,51 @@ Project Link: [https://github.com/yourusername/pdf-ai-summarizer](https://github
 ---
 
 ⭐ Star this repo if you find it helpful!
+
+
+## 🔒 Security
+
+### Environment Variables Protection
+
+This project uses environment variables to store sensitive information like API keys and database credentials.
+
+**Important Security Practices:**
+
+1. ✅ **Never commit `.env` files to Git**
+   - `.env` is already in `.gitignore`
+   - Only commit `.env.example` as a template
+
+2. ✅ **Rotate API Keys if exposed**
+   - If you accidentally committed `.env`, immediately:
+     - Revoke the old API key at [Google AI Studio](https://aistudio.google.com/app/apikey)
+     - Generate a new API key
+     - Update your local `.env` file
+
+3. ✅ **Use different credentials for production**
+   - Never use development credentials in production
+   - Use environment variables from your hosting platform
+
+4. ✅ **Check Git history**
+   ```bash
+   # Check if .env is tracked
+   git ls-files | grep .env
+   
+   # Should only show .env.example, not .env
+   ```
+
+5. ✅ **Remove .env from Git if accidentally committed**
+   ```bash
+   git rm --cached .env
+   git commit -m "Remove .env from tracking"
+   git push
+   ```
+
+### Docker Security
+
+- `.env` files are excluded via `.dockerignore`
+- Sensitive data is passed via `docker-compose.yml` environment variables
+- Never build Docker images with `.env` files inside
+
+---
+
+**Made with ❤️ using Golang, Python, and Next.js**

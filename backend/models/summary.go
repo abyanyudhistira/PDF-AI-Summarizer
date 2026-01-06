@@ -15,7 +15,8 @@ const (
 	ModeQA         SummaryMode = "qa"
 )
 
-type Summary struct {
+// SummaryLog - History of all summarizations
+type SummaryLog struct {
 	ID               uint           `gorm:"primaryKey" json:"id"`
 	PDFFileID        uint           `gorm:"not null;index" json:"pdf_file_id"`
 	Mode             SummaryMode    `gorm:"type:varchar(50);not null" json:"mode"`
@@ -31,10 +32,9 @@ type Summary struct {
 	CreatedAt        time.Time      `json:"created_at"`
 	UpdatedAt        time.Time      `json:"updated_at"`
 	DeletedAt        gorm.DeletedAt `gorm:"index" json:"-"`
-	PDFFile          PDFFile        `gorm:"foreignKey:PDFFileID" json:"pdf_file,omitempty"`
 }
 
-type SummaryResponse struct {
+type SummaryLogResponse struct {
 	ID               uint        `json:"id"`
 	PDFFileID        uint        `json:"pdf_file_id"`
 	Mode             SummaryMode `json:"mode"`
