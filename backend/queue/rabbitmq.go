@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"log"
 	"pdf-summarizer-backend/config"
+	"time"
 
 	amqp "github.com/rabbitmq/amqp091-go"
 )
@@ -30,14 +31,30 @@ type JobMessage struct {
 	JobID uint `json:"job_id"`
 }
 
-// Connect establishes connection to RabbitMQ
+// Connect establishes connection to RabbitMQ with retry logic
 func Connect() error {
 	var err error
+	maxRetries := 10
+	retryDelay := 3 * time.Second
 	
-	// Connect to RabbitMQ
-	Connection, err = amqp.Dial(config.AppConfig.RabbitMQURL)
-	if err != nil {
-		return err
+	log.Println("🔄 Connecting to RabbitMQ...")
+	
+	// Retry connection with exponential backoff
+	for i := 0; i < maxRetries; i++ {
+		Connection, err = amqp.Dial(config.AppConfig.RabbitMQURL)
+		if err == nil {
+			break
+		}
+		
+		if i < maxRetries-1 {
+			log.Printf("⚠️  Failed to connect to RabbitMQ (attempt %d/%d): %v", i+1, maxRetries, err)
+			log.Printf("⏳ Retrying in %v...", retryDelay)
+			time.Sleep(retryDelay)
+			retryDelay *= 2 // Exponential backoff
+		} else {
+			log.Printf("❌ Failed to connect to RabbitMQ after %d attempts", maxRetries)
+			return err
+		}
 	}
 
 	// Create channel

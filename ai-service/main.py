@@ -211,7 +211,10 @@ Document:
 OUTPUT LANGUAGE: {target_language} ONLY
 """
         
-        response = gemini_model.generate_content(prompt)
+        response = gemini_model.generate_content(
+            prompt,
+            generation_config=genai.types.GenerationConfig(temperature=0.3)
+        )
         return response.text
     except Exception as e:
         return f"Error generating summary: {str(e)}"
@@ -252,7 +255,10 @@ Document:
 OUTPUT LANGUAGE: {target_language} ONLY
 """
         
-        response = gemini_model.generate_content(prompt)
+        response = gemini_model.generate_content(
+            prompt,
+            generation_config=genai.types.GenerationConfig(temperature=0.3)
+        )
         return response.text
     except Exception as e:
         return f"Error generating summary: {str(e)}"
@@ -319,7 +325,10 @@ OUTPUT: Valid JSON with ALL text in {target_language} language ONLY
 """
     
     try:
-        response = gemini_model.generate_content(prompt)
+        response = gemini_model.generate_content(
+            prompt,
+            generation_config=genai.types.GenerationConfig(temperature=0.3)
+        )
         data = extract_json(response.text or "")
         if not data:
             data = {
@@ -397,7 +406,10 @@ OUTPUT: Valid JSON with ALL text in {target_language} language ONLY
 """
     
     try:
-        response = gemini_model.generate_content(prompt)
+        response = gemini_model.generate_content(
+            prompt,
+            generation_config=genai.types.GenerationConfig(temperature=0.3)
+        )
         data = extract_json(response.text or "")
         if not data:
             data = {
@@ -653,7 +665,10 @@ OUTPUT LANGUAGE: {target_language} ONLY
 """
     
     try:
-        response = gemini_model.generate_content(prompt)
+        response = gemini_model.generate_content(
+            prompt,
+            generation_config=genai.types.GenerationConfig(temperature=0.3)
+        )
         return QAResponse(answer=response.text or "")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
