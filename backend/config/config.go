@@ -43,6 +43,7 @@ func LoadConfig() {
 		AIServiceURL: getEnv("AI_SERVICE_URL", "http://localhost:8000"),
 		MaxFileSize:  maxFileSize,
 		UploadDir:    getEnv("UPLOAD_DIR", "./uploads"),
+		RabbitMQURL:  getEnv("RABBITMQ_URL", "amqp://admin:admin123@localhost:5672/"),
 	}
 }
 
