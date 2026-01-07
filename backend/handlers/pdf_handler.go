@@ -1,17 +1,19 @@
 package handlers
 
 import (
-	"path/filepath"
+	"log"
 	"pdf-summarizer-backend/config"
 	"pdf-summarizer-backend/database"
 	"pdf-summarizer-backend/models"
+	"pdf-summarizer-backend/storage"
 	"pdf-summarizer-backend/utils"
 	"strconv"
+	"strings"
 
 	"github.com/gofiber/fiber/v2"
 )
 
-// UploadPDF handles PDF file upload
+// UploadPDF handles PDF file upload to MinIO
 func UploadPDF(c *fiber.Ctx) error {
 	file, err := c.FormFile("file")
 	if err != nil {
@@ -25,29 +27,28 @@ func UploadPDF(c *fiber.Ctx) error {
 
 	// Generate unique filename
 	uniqueFilename := utils.GenerateUniqueFilename(file.Filename)
-	filePath := filepath.Join(config.AppConfig.UploadDir, uniqueFilename)
 
-	// Save file
-	if err := c.SaveFile(file, filePath); err != nil {
-		return utils.ErrorResponse(c, fiber.StatusInternalServerError, "Failed to save file")
+	// Upload to MinIO
+	objectPath, err := storage.UploadFile(file, uniqueFilename)
+	if err != nil {
+		return utils.ErrorResponse(c, fiber.StatusInternalServerError, "Failed to upload file to storage")
 	}
 
 	// Extract PDF metadata (total pages) - simplified version
-	// In production, you might want to use a PDF library to get actual page count
 	var totalPages *int
 
 	// Create database record
 	pdfFile := models.PDFFile{
 		Filename:         uniqueFilename,
 		OriginalFilename: file.Filename,
-		FilePath:         filePath,
+		FilePath:         objectPath, // MinIO path: bucket/filename
 		FileSize:         file.Size,
 		TotalPages:       totalPages,
 	}
 
 	if err := database.DB.Create(&pdfFile).Error; err != nil {
-		// Clean up file if database operation fails
-		utils.DeleteFile(filePath)
+		// Clean up MinIO file if database operation fails
+		storage.DeleteFile(uniqueFilename)
 		return utils.ErrorResponse(c, fiber.StatusInternalServerError, "Failed to save file metadata")
 	}
 
@@ -135,7 +136,7 @@ func GetPDF(c *fiber.Ctx) error {
 	return utils.SuccessResponse(c, fiber.StatusOK, "PDF fetched successfully", response)
 }
 
-// DeletePDF deletes a PDF and all its summaries
+// DeletePDF deletes a PDF from MinIO and database
 func DeletePDF(c *fiber.Ctx) error {
 	id := c.Params("id")
 	
@@ -144,8 +145,15 @@ func DeletePDF(c *fiber.Ctx) error {
 		return utils.ErrorResponse(c, fiber.StatusNotFound, "PDF not found")
 	}
 
-	// Delete physical file
-	utils.DeleteFile(pdf.FilePath)
+	// Extract filename from MinIO path (bucket/filename)
+	parts := strings.Split(pdf.FilePath, "/")
+	filename := parts[len(parts)-1]
+
+	// Delete from MinIO
+	if err := storage.DeleteFile(filename); err != nil {
+		// Log error but continue with database deletion
+		log.Printf("Failed to delete file from MinIO: %v", err)
+	}
 
 	// Delete database record (summaries will be deleted automatically due to cascade)
 	if err := database.DB.Delete(&pdf).Error; err != nil {

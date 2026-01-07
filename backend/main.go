@@ -7,7 +7,7 @@ import (
 	"pdf-summarizer-backend/handlers"
 	"pdf-summarizer-backend/middleware"
 	"pdf-summarizer-backend/queue"
-	"pdf-summarizer-backend/utils"
+	"pdf-summarizer-backend/storage"
 	"pdf-summarizer-backend/worker"
 
 	"github.com/gofiber/fiber/v2"
@@ -20,16 +20,16 @@ func main() {
 	// Load configuration
 	config.LoadConfig()
 
-	// Ensure upload directory exists
-	if err := utils.EnsureUploadDir(config.AppConfig.UploadDir); err != nil {
-		log.Fatal("Failed to create upload directory:", err)
-	}
-
 	// Connect to database
 	database.Connect()
 
 	// Run migrations
 	database.Migrate()
+
+	// Initialize MinIO
+	if err := storage.InitMinio(); err != nil {
+		log.Fatal("Failed to initialize MinIO:", err)
+	}
 
 	// Connect to RabbitMQ
 	if err := queue.Connect(); err != nil {

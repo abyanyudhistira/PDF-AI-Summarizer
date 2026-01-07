@@ -7,10 +7,10 @@ import (
 	"io"
 	"mime/multipart"
 	"net/http"
-	"os"
 	"pdf-summarizer-backend/config"
 	"pdf-summarizer-backend/database"
 	"pdf-summarizer-backend/models"
+	"pdf-summarizer-backend/storage"
 	"pdf-summarizer-backend/utils"
 	"strconv"
 	"strings"
@@ -153,23 +153,27 @@ func callAIService(filePath, mode string, language, pages, question *string) (ma
 
 	url := config.AppConfig.AIServiceURL + endpoint
 
-	// Open PDF file
-	file, err := os.Open(filePath)
+	// Extract filename from MinIO path (bucket/filename)
+	parts := strings.Split(filePath, "/")
+	filename := parts[len(parts)-1]
+
+	// Download file from MinIO
+	fileReader, err := storage.DownloadFile(filename)
 	if err != nil {
-		return nil, fmt.Errorf("failed to open PDF file: %w", err)
+		return nil, fmt.Errorf("failed to download PDF from storage: %w", err)
 	}
-	defer file.Close()
+	defer fileReader.Close()
 
 	// Create multipart form
 	body := &bytes.Buffer{}
 	writer := multipart.NewWriter(body)
 
 	// Add file
-	part, err := writer.CreateFormFile("files", filePath)
+	part, err := writer.CreateFormFile("files", filename)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create form file: %w", err)
 	}
-	if _, err := io.Copy(part, file); err != nil {
+	if _, err := io.Copy(part, fileReader); err != nil {
 		return nil, fmt.Errorf("failed to copy file: %w", err)
 	}
 

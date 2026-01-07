@@ -33,9 +33,15 @@
               │ PostgreSQL  │              │ AI Service   │
               │  Database   │              │ Python+Gemini│
               └─────────────┘              └──────────────┘
+                     │
+                     ▼
+              ┌─────────────┐
+              │   MinIO     │
+              │   Storage   │
+              └─────────────┘
 ```
 
-**Stack:** Next.js 14 • Golang Fiber v2 • Python FastAPI • PostgreSQL 16 • RabbitMQ 3.13
+**Stack:** Next.js 14 • Golang Fiber v2 • Python FastAPI • PostgreSQL 16 • RabbitMQ 3.13 • MinIO
 
 ## � tQuick Start
 
@@ -57,6 +63,7 @@ docker-compose up --build
 # Frontend:        http://localhost:3000
 # Backend API:     http://localhost:8080
 # RabbitMQ UI:     http://localhost:15672 (admin/admin123)
+# MinIO Console:   http://localhost:9001 (admin/admin123)
 ```
 
 ## 📖 API Usage
