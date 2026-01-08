@@ -16,6 +16,8 @@ from typing import List, Optional
 import re
 import json
 from langdetect import detect, LangDetectException
+import time
+import asyncio
 
 load_dotenv()
 
@@ -40,6 +42,9 @@ if not gemini_api_key:
 
 genai.configure(api_key=gemini_api_key)
 gemini_model = genai.GenerativeModel("gemini-2.5-flash")
+
+# AI Request Delay Configuration (in seconds)
+AI_REQUEST_DELAY = float(os.getenv("AI_REQUEST_DELAY", "2.0"))  # Default 2 seconds between requests
 
 # ==================== RESPONSE MODELS ====================
 
@@ -69,6 +74,11 @@ class QAResponse(BaseModel):
     provider: str = "gemini"
 
 # ==================== HELPER FUNCTIONS ====================
+
+def apply_ai_delay():
+    """Apply delay between AI requests to avoid rate limiting"""
+    if AI_REQUEST_DELAY > 0:
+        time.sleep(AI_REQUEST_DELAY)
 
 def chunk_text(text: str, chunk_size: int = 4000, overlap: int = 200) -> List[str]:
     """
@@ -150,6 +160,7 @@ OUTPUT: Combined markdown-formatted summary in {target_language} language ONLY
 """
     
     try:
+        apply_ai_delay()  # Add delay before AI request
         response = gemini_model.generate_content(
             prompt,
             generation_config=genai.types.GenerationConfig(temperature=0.3)
@@ -291,6 +302,7 @@ OUTPUT: Valid JSON with ALL text in {target_language} language ONLY
 """
     
     try:
+        apply_ai_delay()  # Add delay before AI request
         response = gemini_model.generate_content(
             prompt,
             generation_config=genai.types.GenerationConfig(temperature=0.3)
@@ -349,6 +361,10 @@ def summarize_text(text: str, target_language: str = None) -> str:
             chunk_summaries = []
             for i, chunk in enumerate(chunks):
                 print(f"🔄 Processing chunk {i+1}/{len(chunks)}")
+                
+                # Add delay between chunks (except first chunk)
+                if i > 0:
+                    apply_ai_delay()
                 
                 lang_examples = {
                     "English": "Example: 'This section discusses...'",
@@ -421,6 +437,7 @@ Document:
 OUTPUT: Markdown-formatted summary in {target_language} language ONLY
 """
         
+        apply_ai_delay()  # Add delay before AI request
         response = gemini_model.generate_content(
             prompt,
             generation_config=genai.types.GenerationConfig(temperature=0.3)
@@ -443,6 +460,10 @@ def summarize_hierarchical(text: str, target_language: str = None) -> str:
             chunk_summaries = []
             for i, chunk in enumerate(chunks):
                 print(f"🔄 Processing chunk {i+1}/{len(chunks)}")
+                
+                # Add delay between chunks (except first chunk)
+                if i > 0:
+                    apply_ai_delay()
                 
                 lang_examples = {
                     "English": "Example: '## Main Topic\n\n- **Subtopic 1**: Details...\n- **Subtopic 2**: Details...'",
@@ -518,6 +539,7 @@ Document:
 OUTPUT: Markdown-formatted hierarchical summary in {target_language} language ONLY
 """
         
+        apply_ai_delay()  # Add delay before AI request
         response = gemini_model.generate_content(
             prompt,
             generation_config=genai.types.GenerationConfig(temperature=0.3)
@@ -534,14 +556,19 @@ def summarize_structured(text: str, target_language: str = None) -> dict:
     # Check if text needs chunking
     if len(text) > 30000:
         chunks = chunk_text(text, chunk_size=4000, overlap=200)
-        print(f"📊 Processing {len(chunks)} chunks for structured summary")
+        print(f"Processing {len(chunks)} chunks for structured summary")
         
         all_bullets = []
         all_highlights = []
         chunk_summaries = []
         
         for i, chunk in enumerate(chunks):
-            print(f"🔄 Processing chunk {i+1}/{len(chunks)}")
+            print(f"Processing chunk {i+1}/{len(chunks)}")
+            
+            # Add delay between chunks (except first chunk)
+            if i > 0:
+                apply_ai_delay()
+            
             result = _summarize_structured_chunk(chunk, target_language)
             
             chunk_summaries.append(result.get("executive_summary", ""))
@@ -619,6 +646,7 @@ OUTPUT: Valid JSON with ALL text in {target_language} language ONLY
 """
     
     try:
+        apply_ai_delay()  # Add delay before AI request
         response = gemini_model.generate_content(
             prompt,
             generation_config=genai.types.GenerationConfig(temperature=0.3)
@@ -700,6 +728,7 @@ OUTPUT: Valid JSON with ALL text in {target_language} language ONLY
 """
     
     try:
+        apply_ai_delay()  # Add delay before AI request
         response = gemini_model.generate_content(
             prompt,
             generation_config=genai.types.GenerationConfig(temperature=0.3)
@@ -961,6 +990,7 @@ OUTPUT: Markdown-formatted answer in {target_language} language ONLY
 """
     
     try:
+        apply_ai_delay()  # Add delay before AI request
         response = gemini_model.generate_content(
             prompt,
             generation_config=genai.types.GenerationConfig(temperature=0.3)
