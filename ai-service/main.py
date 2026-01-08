@@ -133,14 +133,20 @@ def combine_summaries(summaries: List[str], target_language: str) -> str:
     
     prompt = f"""You are a professional editor.
 
-ABSOLUTE REQUIREMENT: Write your ENTIRE response in {target_language} language ONLY.
+ABSOLUTE REQUIREMENT: 
+1. Write your ENTIRE response in {target_language} language ONLY.
+2. PRESERVE markdown formatting from the input summaries:
+   - Keep ## headings
+   - Keep **bold** text
+   - Keep bullet points and lists
+   - Maintain proper structure and hierarchy
 
 Task: {instruction}
 
 Summaries from different sections:
 {combined[:25000]}
 
-OUTPUT: Combined summary in {target_language} language ONLY
+OUTPUT: Combined markdown-formatted summary in {target_language} language ONLY
 """
     
     try:
@@ -356,16 +362,22 @@ def summarize_text(text: str, target_language: str = None) -> str:
                 
                 prompt = f"""You are a professional document summarizer.
 
-ABSOLUTE REQUIREMENT: Write your ENTIRE response in {target_language} language ONLY.
+ABSOLUTE REQUIREMENT: 
+1. Write your ENTIRE response in {target_language} language ONLY.
+2. Format your output in MARKDOWN with proper structure:
+   - Use ## for section headings
+   - Use **bold** for key terms and emphasis
+   - Use bullet points (- or 1.) for lists
+   - Use proper paragraphs with line breaks
 
 {example}
 
-Task: Summarize this section in 2-3 concise paragraphs in {target_language}.
+Task: Summarize this section in 2-3 concise paragraphs using markdown formatting in {target_language}.
 
 Section:
 {chunk}
 
-OUTPUT LANGUAGE: {target_language} ONLY
+OUTPUT: Markdown-formatted summary in {target_language} language ONLY
 """
                 
                 response = gemini_model.generate_content(
@@ -380,31 +392,33 @@ OUTPUT LANGUAGE: {target_language} ONLY
         
         # Original logic for small documents
         lang_examples = {
-            "English": "Example: 'This document discusses...'",
-            "Indonesian": "Contoh: 'Dokumen ini membahas...'",
-            "Spanish": "Ejemplo: 'Este documento discute...'",
-            "French": "Exemple: 'Ce document traite de...'",
-            "German": "Beispiel: 'Dieses Dokument behandelt...'"
+            "English": "Example: '## Overview\n\nThis document discusses...'",
+            "Indonesian": "Contoh: '## Ringkasan\n\nDokumen ini membahas...'",
+            "Spanish": "Ejemplo: '## Resumen\n\nEste documento discute...'",
+            "French": "Exemple: '## Aperçu\n\nCe document traite de...'",
+            "German": "Beispiel: '## Überblick\n\nDieses Dokument behandelt...'"
         }
         
         example = lang_examples.get(target_language, f"Write in {target_language}")
         
         prompt = f"""You are a professional document summarizer.
 
-ABSOLUTE REQUIREMENT: Write your ENTIRE response in {target_language} language ONLY.
-- Do NOT mix languages
-- Do NOT use English if the target is not English
-- Do NOT translate back to the source language
-- EVERY word must be in {target_language}
+ABSOLUTE REQUIREMENT: 
+1. Write your ENTIRE response in {target_language} language ONLY.
+2. Format your output in MARKDOWN with proper structure:
+   - Use ## for section headings
+   - Use **bold** for key terms and emphasis
+   - Use bullet points (- or 1.) for lists
+   - Use proper paragraphs with line breaks
 
 {example}
 
-Task: Summarize the following document in clear, concise paragraphs in {target_language}.
+Task: Summarize the following document in clear, concise paragraphs using markdown formatting in {target_language}.
 
 Document:
 {text}
 
-OUTPUT LANGUAGE: {target_language} ONLY
+OUTPUT: Markdown-formatted summary in {target_language} language ONLY
 """
         
         response = gemini_model.generate_content(
@@ -431,27 +445,33 @@ def summarize_hierarchical(text: str, target_language: str = None) -> str:
                 print(f"🔄 Processing chunk {i+1}/{len(chunks)}")
                 
                 lang_examples = {
-                    "English": "Example: '• Main Topic\n  - Subtopic 1\n  - Subtopic 2'",
-                    "Indonesian": "Contoh: '• Topik Utama\n  - Subtopik 1\n  - Subtopik 2'",
-                    "Spanish": "Ejemplo: '• Tema Principal\n  - Subtema 1\n  - Subtema 2'",
-                    "French": "Exemple: '• Sujet Principal\n  - Sous-sujet 1\n  - Sous-sujet 2'",
-                    "German": "Beispiel: '• Hauptthema\n  - Unterthema 1\n  - Unterthema 2'"
+                    "English": "Example: '## Main Topic\n\n- **Subtopic 1**: Details...\n- **Subtopic 2**: Details...'",
+                    "Indonesian": "Contoh: '## Topik Utama\n\n- **Subtopik 1**: Detail...\n- **Subtopik 2**: Detail...'",
+                    "Spanish": "Ejemplo: '## Tema Principal\n\n- **Subtema 1**: Detalles...\n- **Subtema 2**: Detalles...'",
+                    "French": "Exemple: '## Sujet Principal\n\n- **Sous-sujet 1**: Détails...\n- **Sous-sujet 2**: Détails...'",
+                    "German": "Beispiel: '## Hauptthema\n\n- **Unterthema 1**: Details...\n- **Unterthema 2**: Details...'"
                 }
                 
                 example = lang_examples.get(target_language, f"Write in {target_language}")
                 
                 prompt = f"""You are a professional document analyst.
 
-ABSOLUTE REQUIREMENT: Write your ENTIRE response in {target_language} language ONLY.
+ABSOLUTE REQUIREMENT: 
+1. Write your ENTIRE response in {target_language} language ONLY.
+2. Format your output in MARKDOWN with proper structure:
+   - Use ## for main topic headings
+   - Use **bold** for subtopic names and key terms
+   - Use bullet points (- or 1.) for hierarchical lists
+   - Use proper indentation for hierarchy
 
 {example}
 
-Task: Create a hierarchical summary of this section in {target_language}.
+Task: Create a hierarchical summary of this section using markdown formatting in {target_language}.
 
 Section:
 {chunk}
 
-OUTPUT LANGUAGE: {target_language} ONLY
+OUTPUT: Markdown-formatted hierarchical summary in {target_language} language ONLY
 """
                 
                 response = gemini_model.generate_content(
@@ -469,30 +489,33 @@ OUTPUT LANGUAGE: {target_language} ONLY
         
         # Language-specific instructions
         lang_examples = {
-            "English": "Example: '• Main Topic\n  - Subtopic 1\n  - Subtopic 2'",
-            "Indonesian": "Contoh: '• Topik Utama\n  - Subtopik 1\n  - Subtopik 2'",
-            "Spanish": "Ejemplo: '• Tema Principal\n  - Subtema 1\n  - Subtema 2'",
-            "French": "Exemple: '• Sujet Principal\n  - Sous-sujet 1\n  - Sous-sujet 2'",
-            "German": "Beispiel: '• Hauptthema\n  - Unterthema 1\n  - Unterthema 2'"
+            "English": "Example: '## Main Topic\n\n- **Subtopic 1**: Details...\n- **Subtopic 2**: Details...'",
+            "Indonesian": "Contoh: '## Topik Utama\n\n- **Subtopik 1**: Detail...\n- **Subtopik 2**: Detail...'",
+            "Spanish": "Ejemplo: '## Tema Principal\n\n- **Subtema 1**: Detalles...\n- **Subtema 2**: Detalles...'",
+            "French": "Exemple: '## Sujet Principal\n\n- **Sous-sujet 1**: Détails...\n- **Sous-sujet 2**: Détails...'",
+            "German": "Beispiel: '## Hauptthema\n\n- **Unterthema 1**: Details...\n- **Unterthema 2**: Details...'"
         }
         
         example = lang_examples.get(target_language, f"Write in {target_language}")
         
         prompt = f"""You are a professional document analyst.
 
-ABSOLUTE REQUIREMENT: Write your ENTIRE response in {target_language} language ONLY.
-- Do NOT mix languages
-- Do NOT use English if the target is not English
-- EVERY word, heading, and bullet point must be in {target_language}
+ABSOLUTE REQUIREMENT: 
+1. Write your ENTIRE response in {target_language} language ONLY.
+2. Format your output in MARKDOWN with proper structure:
+   - Use ## for main topic headings
+   - Use **bold** for subtopic names and key terms
+   - Use bullet points (- or 1.) for hierarchical lists
+   - Use proper indentation for hierarchy
 
 {example}
 
-Task: Create a hierarchical summary with main topics and subtopics in {target_language}.
+Task: Create a hierarchical summary with main topics and subtopics using markdown formatting in {target_language}.
 
 Document:
 {truncated_text}
 
-OUTPUT LANGUAGE: {target_language} ONLY
+OUTPUT: Markdown-formatted hierarchical summary in {target_language} language ONLY
 """
         
         response = gemini_model.generate_content(
@@ -904,26 +927,28 @@ async def qa_pdf(
     
     # Language-specific examples
     lang_examples = {
-        "English": "Example: 'Based on the document, the answer is...'",
-        "Indonesian": "Contoh: 'Berdasarkan dokumen, jawabannya adalah...'",
-        "Spanish": "Ejemplo: 'Según el documento, la respuesta es...'",
-        "French": "Exemple: 'Selon le document, la réponse est...'",
-        "German": "Beispiel: 'Laut dem Dokument lautet die Antwort...'"
+        "English": "Example: '**Answer**: Based on the document...\n\n- Key point 1\n- Key point 2'",
+        "Indonesian": "Contoh: '**Jawaban**: Berdasarkan dokumen...\n\n- Poin kunci 1\n- Poin kunci 2'",
+        "Spanish": "Ejemplo: '**Respuesta**: Según el documento...\n\n- Punto clave 1\n- Punto clave 2'",
+        "French": "Exemple: '**Réponse**: Selon le document...\n\n- Point clé 1\n- Point clé 2'",
+        "German": "Beispiel: '**Antwort**: Laut dem Dokument...\n\n- Schlüsselpunkt 1\n- Schlüsselpunkt 2'"
     }
     
     example = lang_examples.get(target_language, f"Answer in {target_language}")
     
     prompt = f"""You are a helpful AI assistant.
 
-ABSOLUTE REQUIREMENT: Write your ENTIRE answer in {target_language} language ONLY.
-- Do NOT mix languages
-- Do NOT use English if the target is not English
-- EVERY word in your answer must be in {target_language}
+ABSOLUTE REQUIREMENT: 
+1. Write your ENTIRE answer in {target_language} language ONLY.
+2. Format your output in MARKDOWN with proper structure:
+   - Use **bold** for emphasis and key terms
+   - Use bullet points (- or 1.) for lists
+   - Use proper paragraphs with line breaks
 
 {example}
 
 Task: Answer the question based ONLY on the document(s) below.
-- Provide a concise, factual answer in {target_language}
+- Provide a concise, factual answer using markdown formatting in {target_language}
 - If you cannot find the answer, say so in {target_language}
 
 Document(s):
@@ -932,7 +957,7 @@ Document(s):
 Question:
 {question}
 
-OUTPUT LANGUAGE: {target_language} ONLY
+OUTPUT: Markdown-formatted answer in {target_language} language ONLY
 """
     
     try:
