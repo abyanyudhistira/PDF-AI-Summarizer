@@ -70,6 +70,89 @@ class QAResponse(BaseModel):
 
 # ==================== HELPER FUNCTIONS ====================
 
+def chunk_text(text: str, chunk_size: int = 4000, overlap: int = 200) -> List[str]:
+    """
+    Split text into chunks with overlap for context continuity
+    
+    Args:
+        text: Text to split
+        chunk_size: Number of words per chunk
+        overlap: Number of words to overlap between chunks
+    
+    Returns:
+        List of text chunks
+    """
+    words = text.split()
+    chunks = []
+    
+    if len(words) <= chunk_size:
+        return [text]
+    
+    i = 0
+    while i < len(words):
+        # Get chunk with overlap
+        end = min(i + chunk_size, len(words))
+        chunk = ' '.join(words[i:end])
+        chunks.append(chunk)
+        
+        # Move forward (chunk_size - overlap)
+        i += (chunk_size - overlap)
+        
+        # Break if we've covered all words
+        if end >= len(words):
+            break
+    
+    return chunks
+
+def combine_summaries(summaries: List[str], target_language: str) -> str:
+    """
+    Combine multiple chunk summaries into one cohesive summary
+    
+    Args:
+        summaries: List of summaries from each chunk
+        target_language: Target language for output
+    
+    Returns:
+        Combined summary
+    """
+    if len(summaries) == 1:
+        return summaries[0]
+    
+    combined = "\n\n--- Next Section ---\n\n".join(summaries)
+    
+    # Language-specific instructions
+    lang_instructions = {
+        "English": "Combine these summaries into one cohesive summary. Remove redundancy while maintaining all key information.",
+        "Indonesian": "Gabungkan ringkasan-ringkasan ini menjadi satu ringkasan yang kohesif. Hapus redundansi sambil mempertahankan semua informasi kunci.",
+        "Spanish": "Combine estos resúmenes en un resumen cohesivo. Elimine la redundancia mientras mantiene toda la información clave.",
+        "French": "Combinez ces résumés en un résumé cohérent. Supprimez la redondance tout en conservant toutes les informations clés.",
+        "German": "Kombinieren Sie diese Zusammenfassungen zu einer zusammenhängenden Zusammenfassung. Entfernen Sie Redundanzen, während Sie alle wichtigen Informationen beibehalten."
+    }
+    
+    instruction = lang_instructions.get(target_language, f"Combine these summaries in {target_language}")
+    
+    prompt = f"""You are a professional editor.
+
+ABSOLUTE REQUIREMENT: Write your ENTIRE response in {target_language} language ONLY.
+
+Task: {instruction}
+
+Summaries from different sections:
+{combined[:25000]}
+
+OUTPUT: Combined summary in {target_language} language ONLY
+"""
+    
+    try:
+        response = gemini_model.generate_content(
+            prompt,
+            generation_config=genai.types.GenerationConfig(temperature=0.3)
+        )
+        return response.text
+    except Exception as e:
+        # If combining fails, return concatenated summaries
+        return "\n\n".join(summaries)
+
 def detect_language(text: str) -> str:
     """Detect the language of the text"""
     try:
@@ -151,6 +234,76 @@ def extract_json(text: str) -> Optional[dict]:
             return None
     return None
 
+def _summarize_structured_chunk(text: str, target_language: str) -> dict:
+    """Helper function to summarize a single chunk in structured format"""
+    lang_examples = {
+        "English": '''{
+  "executive_summary": "This section discusses...",
+  "bullets": ["First key point", "Second key point"],
+  "highlights": ["Important sentence one", "Important sentence two"]
+}''',
+        "Indonesian": '''{
+  "executive_summary": "Bagian ini membahas...",
+  "bullets": ["Poin kunci pertama", "Poin kunci kedua"],
+  "highlights": ["Kalimat penting satu", "Kalimat penting dua"]
+}''',
+        "Spanish": '''{
+  "executive_summary": "Esta sección discute...",
+  "bullets": ["Primer punto clave", "Segundo punto clave"],
+  "highlights": ["Primera oración importante", "Segunda oración importante"]
+}''',
+        "French": '''{
+  "executive_summary": "Cette section traite de...",
+  "bullets": ["Premier point clé", "Deuxième point clé"],
+  "highlights": ["Première phrase importante", "Deuxième phrase importante"]
+}''',
+        "German": '''{
+  "executive_summary": "Dieser Abschnitt behandelt...",
+  "bullets": ["Erster Schlüsselpunkt", "Zweiter Schlüsselpunkt"],
+  "highlights": ["Erster wichtiger Satz", "Zweiter wichtiger Satz"]
+}'''
+    }
+    
+    example = lang_examples.get(target_language, f"Write all text in {target_language}")
+    
+    prompt = f"""You are a professional analyst. Respond ONLY with valid JSON.
+
+ABSOLUTE REQUIREMENT: ALL text in the JSON must be in {target_language} language ONLY.
+
+Example JSON format in {target_language}:
+{example}
+
+Task: Analyze this section and create JSON with:
+- executive_summary: Brief summary (2-3 sentences) in {target_language}
+- bullets: Array of 3-5 key points in {target_language}
+- highlights: Array of 2-3 important sentences verbatim in {target_language}
+
+Section:
+{text}
+
+OUTPUT: Valid JSON with ALL text in {target_language} language ONLY
+"""
+    
+    try:
+        response = gemini_model.generate_content(
+            prompt,
+            generation_config=genai.types.GenerationConfig(temperature=0.3)
+        )
+        data = extract_json(response.text or "")
+        if not data:
+            data = {
+                "executive_summary": "",
+                "bullets": [],
+                "highlights": []
+            }
+        return data
+    except Exception as e:
+        return {
+            "executive_summary": "",
+            "bullets": [],
+            "highlights": []
+        }
+
 def highlight_sentences(text: str, top_k: int = 5) -> List[str]:
     """Extract important sentences using frequency-based approach"""
     sentences = re.split(r"(?<=[.!?])\s+", text.strip())
@@ -175,14 +328,57 @@ def highlight_sentences(text: str, top_k: int = 5) -> List[str]:
 # ==================== AI SUMMARIZATION FUNCTIONS ====================
 
 def summarize_text(text: str, target_language: str = None) -> str:
-    """Generate simple summary"""
+    """Generate simple summary with chunking support"""
     try:
-        truncated_text = text[:30000]
-        
         if not target_language:
-            target_language = detect_language(truncated_text)
+            target_language = detect_language(text[:1000])
         
-        # Language-specific instructions
+        # Check if text needs chunking (>30k chars = ~6k words)
+        if len(text) > 30000:
+            # Split into chunks
+            chunks = chunk_text(text, chunk_size=4000, overlap=200)
+            print(f"📊 Processing {len(chunks)} chunks for large document")
+            
+            # Summarize each chunk
+            chunk_summaries = []
+            for i, chunk in enumerate(chunks):
+                print(f"🔄 Processing chunk {i+1}/{len(chunks)}")
+                
+                lang_examples = {
+                    "English": "Example: 'This section discusses...'",
+                    "Indonesian": "Contoh: 'Bagian ini membahas...'",
+                    "Spanish": "Ejemplo: 'Esta sección discute...'",
+                    "French": "Exemple: 'Cette section traite de...'",
+                    "German": "Beispiel: 'Dieser Abschnitt behandelt...'"
+                }
+                
+                example = lang_examples.get(target_language, f"Write in {target_language}")
+                
+                prompt = f"""You are a professional document summarizer.
+
+ABSOLUTE REQUIREMENT: Write your ENTIRE response in {target_language} language ONLY.
+
+{example}
+
+Task: Summarize this section in 2-3 concise paragraphs in {target_language}.
+
+Section:
+{chunk}
+
+OUTPUT LANGUAGE: {target_language} ONLY
+"""
+                
+                response = gemini_model.generate_content(
+                    prompt,
+                    generation_config=genai.types.GenerationConfig(temperature=0.3)
+                )
+                chunk_summaries.append(response.text)
+            
+            # Combine all chunk summaries
+            print(f"🔗 Combining {len(chunk_summaries)} summaries")
+            return combine_summaries(chunk_summaries, target_language)
+        
+        # Original logic for small documents
         lang_examples = {
             "English": "Example: 'This document discusses...'",
             "Indonesian": "Contoh: 'Dokumen ini membahas...'",
@@ -206,7 +402,7 @@ ABSOLUTE REQUIREMENT: Write your ENTIRE response in {target_language} language O
 Task: Summarize the following document in clear, concise paragraphs in {target_language}.
 
 Document:
-{truncated_text}
+{text}
 
 OUTPUT LANGUAGE: {target_language} ONLY
 """
@@ -222,10 +418,54 @@ OUTPUT LANGUAGE: {target_language} ONLY
 def summarize_hierarchical(text: str, target_language: str = None) -> str:
     """Generate hierarchical summary for multiple documents"""
     try:
-        truncated_text = text[:30000]
-        
         if not target_language:
-            target_language = detect_language(truncated_text)
+            target_language = detect_language(text[:1000])
+        
+        # Check if text needs chunking
+        if len(text) > 30000:
+            chunks = chunk_text(text, chunk_size=4000, overlap=200)
+            print(f"📊 Processing {len(chunks)} chunks for hierarchical summary")
+            
+            chunk_summaries = []
+            for i, chunk in enumerate(chunks):
+                print(f"🔄 Processing chunk {i+1}/{len(chunks)}")
+                
+                lang_examples = {
+                    "English": "Example: '• Main Topic\n  - Subtopic 1\n  - Subtopic 2'",
+                    "Indonesian": "Contoh: '• Topik Utama\n  - Subtopik 1\n  - Subtopik 2'",
+                    "Spanish": "Ejemplo: '• Tema Principal\n  - Subtema 1\n  - Subtema 2'",
+                    "French": "Exemple: '• Sujet Principal\n  - Sous-sujet 1\n  - Sous-sujet 2'",
+                    "German": "Beispiel: '• Hauptthema\n  - Unterthema 1\n  - Unterthema 2'"
+                }
+                
+                example = lang_examples.get(target_language, f"Write in {target_language}")
+                
+                prompt = f"""You are a professional document analyst.
+
+ABSOLUTE REQUIREMENT: Write your ENTIRE response in {target_language} language ONLY.
+
+{example}
+
+Task: Create a hierarchical summary of this section in {target_language}.
+
+Section:
+{chunk}
+
+OUTPUT LANGUAGE: {target_language} ONLY
+"""
+                
+                response = gemini_model.generate_content(
+                    prompt,
+                    generation_config=genai.types.GenerationConfig(temperature=0.3)
+                )
+                chunk_summaries.append(response.text)
+            
+            # Combine hierarchical summaries
+            print(f"🔗 Combining {len(chunk_summaries)} hierarchical summaries")
+            return combine_summaries(chunk_summaries, target_language)
+        
+        # Original logic for small documents
+        truncated_text = text[:30000]
         
         # Language-specific instructions
         lang_examples = {
@@ -265,10 +505,41 @@ OUTPUT LANGUAGE: {target_language} ONLY
 
 def summarize_structured(text: str, target_language: str = None) -> dict:
     """Generate structured summary with executive summary, bullets, and highlights"""
-    truncated_text = text[:30000]
-    
     if not target_language:
-        target_language = detect_language(truncated_text)
+        target_language = detect_language(text[:1000])
+    
+    # Check if text needs chunking
+    if len(text) > 30000:
+        chunks = chunk_text(text, chunk_size=4000, overlap=200)
+        print(f"📊 Processing {len(chunks)} chunks for structured summary")
+        
+        all_bullets = []
+        all_highlights = []
+        chunk_summaries = []
+        
+        for i, chunk in enumerate(chunks):
+            print(f"🔄 Processing chunk {i+1}/{len(chunks)}")
+            result = _summarize_structured_chunk(chunk, target_language)
+            
+            chunk_summaries.append(result.get("executive_summary", ""))
+            all_bullets.extend(result.get("bullets", []))
+            all_highlights.extend(result.get("highlights", []))
+        
+        # Combine executive summaries
+        combined_exec = combine_summaries(chunk_summaries, target_language)
+        
+        # Deduplicate and limit bullets/highlights
+        unique_bullets = list(dict.fromkeys(all_bullets))[:10]
+        unique_highlights = list(dict.fromkeys(all_highlights))[:8]
+        
+        return {
+            "executive_summary": combined_exec,
+            "bullets": unique_bullets,
+            "highlights": unique_highlights
+        }
+    
+    # Original logic for small documents
+    truncated_text = text[:30000]
     
     # Language-specific JSON examples
     lang_examples = {

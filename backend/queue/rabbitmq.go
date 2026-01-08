@@ -37,7 +37,7 @@ func Connect() error {
 	maxRetries := 10
 	retryDelay := 3 * time.Second
 	
-	log.Println("🔄 Connecting to RabbitMQ...")
+	log.Println("Connecting to RabbitMQ...")
 	
 	// Retry connection with exponential backoff
 	for i := 0; i < maxRetries; i++ {
@@ -47,12 +47,12 @@ func Connect() error {
 		}
 		
 		if i < maxRetries-1 {
-			log.Printf("⚠️  Failed to connect to RabbitMQ (attempt %d/%d): %v", i+1, maxRetries, err)
-			log.Printf("⏳ Retrying in %v...", retryDelay)
+			log.Printf("Failed to connect to RabbitMQ (attempt %d/%d): %v", i+1, maxRetries, err)
+			log.Printf("Retrying in %v...", retryDelay)
 			time.Sleep(retryDelay)
 			retryDelay *= 2 // Exponential backoff
 		} else {
-			log.Printf("❌ Failed to connect to RabbitMQ after %d attempts", maxRetries)
+			log.Printf("Failed to connect to RabbitMQ after %d attempts", maxRetries)
 			return err
 		}
 	}
@@ -142,9 +142,9 @@ func Connect() error {
 		return err
 	}
 
-	log.Println("✅ RabbitMQ connected successfully")
-	log.Printf("📬 Queue: %s", QueueName)
-	log.Printf("💀 Dead Letter Queue: %s", DeadLetterQueue)
+	log.Println("RabbitMQ connected successfully")
+	log.Printf("Queue: %s", QueueName)
+	log.Printf("Dead Letter Queue: %s", DeadLetterQueue)
 	
 	// Setup audit queue
 	if err := setupAuditQueue(); err != nil {
@@ -195,7 +195,7 @@ func setupAuditQueue() error {
 		return err
 	}
 
-	log.Printf("📝 Audit Queue: %s", AuditQueueName)
+	log.Printf("Audit Queue: %s", AuditQueueName)
 	return nil
 }
 
@@ -226,7 +226,7 @@ func PublishJob(jobID uint) error {
 		return err
 	}
 
-	log.Printf("📤 Published job %d to queue", jobID)
+	log.Printf("Published job %d to queue", jobID)
 	return nil
 }
 

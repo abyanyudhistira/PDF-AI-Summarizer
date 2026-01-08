@@ -197,8 +197,10 @@ func callAIService(filePath, mode string, language, pages, question *string) (ma
 	}
 	req.Header.Set("Content-Type", writer.FormDataContentType())
 
-	// Send request
-	client := &http.Client{Timeout: 120 * time.Second}
+	// Send request with configurable timeout
+	// Default: 10 minutes for large PDFs
+	timeout := time.Duration(config.AppConfig.AITimeout) * time.Second
+	client := &http.Client{Timeout: timeout}
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to send request: %w", err)

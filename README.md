@@ -68,8 +68,9 @@ docker-compose up --build
 
 ## 📖 API Usage
 
-### Synchronous Summarization
+### PDF Summarization (Asynchronous with Queue)
 ```bash
+# Create summarization job (returns immediately)
 POST /api/pdfs/:id/summarize
 {
   "mode": "simple|structured|multi|qa",
@@ -77,18 +78,19 @@ POST /api/pdfs/:id/summarize
   "pages": "1-5",
   "question": "What is the main topic?" // for QA mode
 }
-```
 
-### Asynchronous Job Queue
-```bash
-# Create job (returns immediately)
-POST /api/pdfs/:id/summarize-async
+# Response: Job created
 {
-  "mode": "structured",
-  "language": "indonesian"
+  "success": true,
+  "data": {
+    "id": 123,
+    "status": "pending",
+    "mode": "simple",
+    "created_at": "2026-01-07T10:00:00Z"
+  }
 }
 
-# Check job status
+# Check job status (poll every 2 seconds)
 GET /api/jobs/:jobId
 
 # List all jobs (with filters)

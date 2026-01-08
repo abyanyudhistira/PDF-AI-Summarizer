@@ -5,6 +5,7 @@ import (
 	"log"
 	"pdf-summarizer-backend/handlers"
 	"pdf-summarizer-backend/queue"
+	"strings"
 
 	amqp "github.com/rabbitmq/amqp091-go"
 )
@@ -50,18 +51,53 @@ func processMessage(msg amqp.Delivery) {
 		return
 	}
 
-	log.Printf("📥 Processing job %d", jobMsg.JobID)
+	log.Printf("📥 Processing job %d (attempt %d)", jobMsg.JobID, msg.Headers["x-delivery-count"])
 
-	// Process the job
-	err = handlers.ProcessJob(jobMsg.JobID)
+	// Process the job with checkpoint/resume capability
+	err = handlers.ProcessJobWithCheckpoint(jobMsg.JobID)
 	
 	if err != nil {
 		log.Printf("❌ Job %d failed: %v", jobMsg.JobID, err)
-		// Nack with requeue - RabbitMQ will retry or send to DLQ
-		msg.Nack(false, true)
+		
+		// Check if error is permanent (don't requeue)
+		errMsg := err.Error()
+		isPermanent := false
+		
+		permanentErrors := []string{
+			"specified key does not exist",
+			"file not found",
+			"invalid file format",
+			"file too large",
+			"could not extract text",
+			"corrupted",
+			"encrypted",
+		}
+		
+		for _, permErr := range permanentErrors {
+			if contains(errMsg, permErr) {
+				isPermanent = true
+				log.Printf("🚫 Permanent error - not requeuing job %d", jobMsg.JobID)
+				break
+			}
+		}
+		
+		if isPermanent {
+			// Don't requeue permanent errors - send to DLQ
+			msg.Nack(false, false)
+		} else {
+			// Requeue for retry
+			msg.Nack(false, true)
+		}
 	} else {
 		log.Printf("✅ Job %d completed successfully", jobMsg.JobID)
 		// Acknowledge successful processing
 		msg.Ack(false)
 	}
+}
+
+// Helper function to check if string contains substring (case-insensitive)
+func contains(s, substr string) bool {
+	s = strings.ToLower(s)
+	substr = strings.ToLower(substr)
+	return strings.Contains(s, substr)
 }

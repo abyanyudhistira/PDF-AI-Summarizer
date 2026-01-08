@@ -30,6 +30,11 @@ type SummarizationJob struct {
 	MaxRetries  int            `gorm:"default:3" json:"max_retries"`
 	ErrorMsg    *string        `gorm:"type:text" json:"error_msg"`
 	
+	// Checkpoint/Resume mechanism for cost optimization
+	LastProcessedPage *int      `gorm:"default:0" json:"last_processed_page"` // Last successfully processed page
+	PartialResult     *string   `gorm:"type:text" json:"partial_result"`      // Partial summary result (JSON)
+	TotalPages        *int      `json:"total_pages"`                          // Total pages to process
+	
 	// Result
 	SummaryLogID *uint         `gorm:"index" json:"summary_log_id"`
 	
@@ -56,6 +61,12 @@ type JobResponse struct {
 	RetryCount   int        `json:"retry_count"`
 	MaxRetries   int        `json:"max_retries"`
 	ErrorMsg     *string    `json:"error_msg"`
+	
+	// Checkpoint info
+	LastProcessedPage *int   `json:"last_processed_page,omitempty"`
+	TotalPages        *int   `json:"total_pages,omitempty"`
+	Progress          string `json:"progress,omitempty"` // e.g., "50/100 pages"
+	
 	SummaryLogID *uint      `json:"summary_log_id"`
 	StartedAt    *time.Time `json:"started_at"`
 	CompletedAt  *time.Time `json:"completed_at"`

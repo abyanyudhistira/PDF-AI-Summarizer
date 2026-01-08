@@ -76,9 +76,8 @@ func main() {
 	pdfs.Delete("/:id", handlers.DeletePDF)
 	pdfs.Get("/stats/count", handlers.GetPDFStats)
 	
-	// PDF Summarization routes
-	pdfs.Post("/:id/summarize", handlers.SummarizePDF)           // Sync (old way)
-	pdfs.Post("/:id/summarize-async", handlers.CreateSummarizationJob) // Async (new way with queue)
+	// PDF Summarization routes (Async with RabbitMQ Queue)
+	pdfs.Post("/:id/summarize", handlers.CreateSummarizationJob) // Async (default)
 	pdfs.Get("/:id/summaries", handlers.ListSummaries)
 
 	// Summary routes
@@ -99,6 +98,8 @@ func main() {
 	audit.Get("/logs", handlers.ListAuditLogs)                 // List audit logs
 	audit.Get("/stats", handlers.GetAuditStats)                // Get statistics
 	audit.Delete("/logs/cleanup", handlers.DeleteOldAuditLogs) // Cleanup old logs
+
+	// Test routes removed - not needed for production
 
 	// Start server
 	port := config.AppConfig.Port

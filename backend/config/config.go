@@ -17,6 +17,7 @@ type Config struct {
 	DBName          string
 	DBSSLMode       string
 	AIServiceURL    string
+	AITimeout       int64  // AI service timeout in seconds
 	MaxFileSize     int64
 	UploadDir       string
 	RabbitMQURL     string
@@ -37,6 +38,7 @@ func LoadConfig() {
 
 	maxFileSize, _ := strconv.ParseInt(getEnv("MAX_FILE_SIZE", "10485760"), 10, 64)
 	minioUseSSL, _ := strconv.ParseBool(getEnv("MINIO_USE_SSL", "false"))
+	aiTimeout, _ := strconv.ParseInt(getEnv("AI_TIMEOUT", "600"), 10, 64) // Default 10 minutes
 
 	AppConfig = &Config{
 		Port:           getEnv("PORT", "8080"),
@@ -47,6 +49,7 @@ func LoadConfig() {
 		DBName:         getEnv("DB_NAME", "pdf_summarizer"),
 		DBSSLMode:      getEnv("DB_SSLMODE", "disable"),
 		AIServiceURL:   getEnv("AI_SERVICE_URL", "http://localhost:8000"),
+		AITimeout:      aiTimeout,
 		MaxFileSize:    maxFileSize,
 		UploadDir:      getEnv("UPLOAD_DIR", "./uploads"),
 		RabbitMQURL:    getEnv("RABBITMQ_URL", "amqp://admin:admin123@localhost:5672/"),
