@@ -16,8 +16,6 @@ from typing import List, Optional
 import re
 import json
 from langdetect import detect, LangDetectException
-import time
-import asyncio
 
 load_dotenv()
 
@@ -42,9 +40,6 @@ if not gemini_api_key:
 
 genai.configure(api_key=gemini_api_key)
 gemini_model = genai.GenerativeModel("gemini-2.5-flash")
-
-# AI Request Delay Configuration (in seconds)
-AI_REQUEST_DELAY = float(os.getenv("AI_REQUEST_DELAY", "2.0"))  # Default 2 seconds between requests
 
 # ==================== RESPONSE MODELS ====================
 
@@ -74,11 +69,6 @@ class QAResponse(BaseModel):
     provider: str = "gemini"
 
 # ==================== HELPER FUNCTIONS ====================
-
-def apply_ai_delay():
-    """Apply delay between AI requests to avoid rate limiting"""
-    if AI_REQUEST_DELAY > 0:
-        time.sleep(AI_REQUEST_DELAY)
 
 def chunk_text(text: str, chunk_size: int = 4000, overlap: int = 200) -> List[str]:
     """
@@ -143,24 +133,17 @@ def combine_summaries(summaries: List[str], target_language: str) -> str:
     
     prompt = f"""You are a professional editor.
 
-ABSOLUTE REQUIREMENT: 
-1. Write your ENTIRE response in {target_language} language ONLY.
-2. PRESERVE markdown formatting from the input summaries:
-   - Keep ## headings
-   - Keep **bold** text
-   - Keep bullet points and lists
-   - Maintain proper structure and hierarchy
+ABSOLUTE REQUIREMENT: Write your ENTIRE response in {target_language} language ONLY.
 
 Task: {instruction}
 
 Summaries from different sections:
 {combined[:25000]}
 
-OUTPUT: Combined markdown-formatted summary in {target_language} language ONLY
+OUTPUT: Combined summary in {target_language} language ONLY
 """
     
     try:
-        apply_ai_delay()  # Add delay before AI request
         response = gemini_model.generate_content(
             prompt,
             generation_config=genai.types.GenerationConfig(temperature=0.3)
@@ -302,7 +285,6 @@ OUTPUT: Valid JSON with ALL text in {target_language} language ONLY
 """
     
     try:
-        apply_ai_delay()  # Add delay before AI request
         response = gemini_model.generate_content(
             prompt,
             generation_config=genai.types.GenerationConfig(temperature=0.3)
@@ -362,10 +344,6 @@ def summarize_text(text: str, target_language: str = None) -> str:
             for i, chunk in enumerate(chunks):
                 print(f"🔄 Processing chunk {i+1}/{len(chunks)}")
                 
-                # Add delay between chunks (except first chunk)
-                if i > 0:
-                    apply_ai_delay()
-                
                 lang_examples = {
                     "English": "Example: 'This section discusses...'",
                     "Indonesian": "Contoh: 'Bagian ini membahas...'",
@@ -378,22 +356,16 @@ def summarize_text(text: str, target_language: str = None) -> str:
                 
                 prompt = f"""You are a professional document summarizer.
 
-ABSOLUTE REQUIREMENT: 
-1. Write your ENTIRE response in {target_language} language ONLY.
-2. Format your output in MARKDOWN with proper structure:
-   - Use ## for section headings
-   - Use **bold** for key terms and emphasis
-   - Use bullet points (- or 1.) for lists
-   - Use proper paragraphs with line breaks
+ABSOLUTE REQUIREMENT: Write your ENTIRE response in {target_language} language ONLY.
 
 {example}
 
-Task: Summarize this section in 2-3 concise paragraphs using markdown formatting in {target_language}.
+Task: Summarize this section in 2-3 concise paragraphs in {target_language}.
 
 Section:
 {chunk}
 
-OUTPUT: Markdown-formatted summary in {target_language} language ONLY
+OUTPUT LANGUAGE: {target_language} ONLY
 """
                 
                 response = gemini_model.generate_content(
@@ -408,36 +380,33 @@ OUTPUT: Markdown-formatted summary in {target_language} language ONLY
         
         # Original logic for small documents
         lang_examples = {
-            "English": "Example: '## Overview\n\nThis document discusses...'",
-            "Indonesian": "Contoh: '## Ringkasan\n\nDokumen ini membahas...'",
-            "Spanish": "Ejemplo: '## Resumen\n\nEste documento discute...'",
-            "French": "Exemple: '## Aperçu\n\nCe document traite de...'",
-            "German": "Beispiel: '## Überblick\n\nDieses Dokument behandelt...'"
+            "English": "Example: 'This document discusses...'",
+            "Indonesian": "Contoh: 'Dokumen ini membahas...'",
+            "Spanish": "Ejemplo: 'Este documento discute...'",
+            "French": "Exemple: 'Ce document traite de...'",
+            "German": "Beispiel: 'Dieses Dokument behandelt...'"
         }
         
         example = lang_examples.get(target_language, f"Write in {target_language}")
         
         prompt = f"""You are a professional document summarizer.
 
-ABSOLUTE REQUIREMENT: 
-1. Write your ENTIRE response in {target_language} language ONLY.
-2. Format your output in MARKDOWN with proper structure:
-   - Use ## for section headings
-   - Use **bold** for key terms and emphasis
-   - Use bullet points (- or 1.) for lists
-   - Use proper paragraphs with line breaks
+ABSOLUTE REQUIREMENT: Write your ENTIRE response in {target_language} language ONLY.
+- Do NOT mix languages
+- Do NOT use English if the target is not English
+- Do NOT translate back to the source language
+- EVERY word must be in {target_language}
 
 {example}
 
-Task: Summarize the following document in clear, concise paragraphs using markdown formatting in {target_language}.
+Task: Summarize the following document in clear, concise paragraphs in {target_language}.
 
 Document:
 {text}
 
-OUTPUT: Markdown-formatted summary in {target_language} language ONLY
+OUTPUT LANGUAGE: {target_language} ONLY
 """
         
-        apply_ai_delay()  # Add delay before AI request
         response = gemini_model.generate_content(
             prompt,
             generation_config=genai.types.GenerationConfig(temperature=0.3)
@@ -461,38 +430,28 @@ def summarize_hierarchical(text: str, target_language: str = None) -> str:
             for i, chunk in enumerate(chunks):
                 print(f"🔄 Processing chunk {i+1}/{len(chunks)}")
                 
-                # Add delay between chunks (except first chunk)
-                if i > 0:
-                    apply_ai_delay()
-                
                 lang_examples = {
-                    "English": "Example: '## Main Topic\n\n- **Subtopic 1**: Details...\n- **Subtopic 2**: Details...'",
-                    "Indonesian": "Contoh: '## Topik Utama\n\n- **Subtopik 1**: Detail...\n- **Subtopik 2**: Detail...'",
-                    "Spanish": "Ejemplo: '## Tema Principal\n\n- **Subtema 1**: Detalles...\n- **Subtema 2**: Detalles...'",
-                    "French": "Exemple: '## Sujet Principal\n\n- **Sous-sujet 1**: Détails...\n- **Sous-sujet 2**: Détails...'",
-                    "German": "Beispiel: '## Hauptthema\n\n- **Unterthema 1**: Details...\n- **Unterthema 2**: Details...'"
+                    "English": "Example: '• Main Topic\n  - Subtopic 1\n  - Subtopic 2'",
+                    "Indonesian": "Contoh: '• Topik Utama\n  - Subtopik 1\n  - Subtopik 2'",
+                    "Spanish": "Ejemplo: '• Tema Principal\n  - Subtema 1\n  - Subtema 2'",
+                    "French": "Exemple: '• Sujet Principal\n  - Sous-sujet 1\n  - Sous-sujet 2'",
+                    "German": "Beispiel: '• Hauptthema\n  - Unterthema 1\n  - Unterthema 2'"
                 }
                 
                 example = lang_examples.get(target_language, f"Write in {target_language}")
                 
                 prompt = f"""You are a professional document analyst.
 
-ABSOLUTE REQUIREMENT: 
-1. Write your ENTIRE response in {target_language} language ONLY.
-2. Format your output in MARKDOWN with proper structure:
-   - Use ## for main topic headings
-   - Use **bold** for subtopic names and key terms
-   - Use bullet points (- or 1.) for hierarchical lists
-   - Use proper indentation for hierarchy
+ABSOLUTE REQUIREMENT: Write your ENTIRE response in {target_language} language ONLY.
 
 {example}
 
-Task: Create a hierarchical summary of this section using markdown formatting in {target_language}.
+Task: Create a hierarchical summary of this section in {target_language}.
 
 Section:
 {chunk}
 
-OUTPUT: Markdown-formatted hierarchical summary in {target_language} language ONLY
+OUTPUT LANGUAGE: {target_language} ONLY
 """
                 
                 response = gemini_model.generate_content(
@@ -510,36 +469,32 @@ OUTPUT: Markdown-formatted hierarchical summary in {target_language} language ON
         
         # Language-specific instructions
         lang_examples = {
-            "English": "Example: '## Main Topic\n\n- **Subtopic 1**: Details...\n- **Subtopic 2**: Details...'",
-            "Indonesian": "Contoh: '## Topik Utama\n\n- **Subtopik 1**: Detail...\n- **Subtopik 2**: Detail...'",
-            "Spanish": "Ejemplo: '## Tema Principal\n\n- **Subtema 1**: Detalles...\n- **Subtema 2**: Detalles...'",
-            "French": "Exemple: '## Sujet Principal\n\n- **Sous-sujet 1**: Détails...\n- **Sous-sujet 2**: Détails...'",
-            "German": "Beispiel: '## Hauptthema\n\n- **Unterthema 1**: Details...\n- **Unterthema 2**: Details...'"
+            "English": "Example: '• Main Topic\n  - Subtopic 1\n  - Subtopic 2'",
+            "Indonesian": "Contoh: '• Topik Utama\n  - Subtopik 1\n  - Subtopik 2'",
+            "Spanish": "Ejemplo: '• Tema Principal\n  - Subtema 1\n  - Subtema 2'",
+            "French": "Exemple: '• Sujet Principal\n  - Sous-sujet 1\n  - Sous-sujet 2'",
+            "German": "Beispiel: '• Hauptthema\n  - Unterthema 1\n  - Unterthema 2'"
         }
         
         example = lang_examples.get(target_language, f"Write in {target_language}")
         
         prompt = f"""You are a professional document analyst.
 
-ABSOLUTE REQUIREMENT: 
-1. Write your ENTIRE response in {target_language} language ONLY.
-2. Format your output in MARKDOWN with proper structure:
-   - Use ## for main topic headings
-   - Use **bold** for subtopic names and key terms
-   - Use bullet points (- or 1.) for hierarchical lists
-   - Use proper indentation for hierarchy
+ABSOLUTE REQUIREMENT: Write your ENTIRE response in {target_language} language ONLY.
+- Do NOT mix languages
+- Do NOT use English if the target is not English
+- EVERY word, heading, and bullet point must be in {target_language}
 
 {example}
 
-Task: Create a hierarchical summary with main topics and subtopics using markdown formatting in {target_language}.
+Task: Create a hierarchical summary with main topics and subtopics in {target_language}.
 
 Document:
 {truncated_text}
 
-OUTPUT: Markdown-formatted hierarchical summary in {target_language} language ONLY
+OUTPUT LANGUAGE: {target_language} ONLY
 """
         
-        apply_ai_delay()  # Add delay before AI request
         response = gemini_model.generate_content(
             prompt,
             generation_config=genai.types.GenerationConfig(temperature=0.3)
@@ -556,19 +511,14 @@ def summarize_structured(text: str, target_language: str = None) -> dict:
     # Check if text needs chunking
     if len(text) > 30000:
         chunks = chunk_text(text, chunk_size=4000, overlap=200)
-        print(f"Processing {len(chunks)} chunks for structured summary")
+        print(f"📊 Processing {len(chunks)} chunks for structured summary")
         
         all_bullets = []
         all_highlights = []
         chunk_summaries = []
         
         for i, chunk in enumerate(chunks):
-            print(f"Processing chunk {i+1}/{len(chunks)}")
-            
-            # Add delay between chunks (except first chunk)
-            if i > 0:
-                apply_ai_delay()
-            
+            print(f"🔄 Processing chunk {i+1}/{len(chunks)}")
             result = _summarize_structured_chunk(chunk, target_language)
             
             chunk_summaries.append(result.get("executive_summary", ""))
@@ -646,7 +596,6 @@ OUTPUT: Valid JSON with ALL text in {target_language} language ONLY
 """
     
     try:
-        apply_ai_delay()  # Add delay before AI request
         response = gemini_model.generate_content(
             prompt,
             generation_config=genai.types.GenerationConfig(temperature=0.3)
@@ -728,7 +677,6 @@ OUTPUT: Valid JSON with ALL text in {target_language} language ONLY
 """
     
     try:
-        apply_ai_delay()  # Add delay before AI request
         response = gemini_model.generate_content(
             prompt,
             generation_config=genai.types.GenerationConfig(temperature=0.3)
@@ -956,28 +904,26 @@ async def qa_pdf(
     
     # Language-specific examples
     lang_examples = {
-        "English": "Example: '**Answer**: Based on the document...\n\n- Key point 1\n- Key point 2'",
-        "Indonesian": "Contoh: '**Jawaban**: Berdasarkan dokumen...\n\n- Poin kunci 1\n- Poin kunci 2'",
-        "Spanish": "Ejemplo: '**Respuesta**: Según el documento...\n\n- Punto clave 1\n- Punto clave 2'",
-        "French": "Exemple: '**Réponse**: Selon le document...\n\n- Point clé 1\n- Point clé 2'",
-        "German": "Beispiel: '**Antwort**: Laut dem Dokument...\n\n- Schlüsselpunkt 1\n- Schlüsselpunkt 2'"
+        "English": "Example: 'Based on the document, the answer is...'",
+        "Indonesian": "Contoh: 'Berdasarkan dokumen, jawabannya adalah...'",
+        "Spanish": "Ejemplo: 'Según el documento, la respuesta es...'",
+        "French": "Exemple: 'Selon le document, la réponse est...'",
+        "German": "Beispiel: 'Laut dem Dokument lautet die Antwort...'"
     }
     
     example = lang_examples.get(target_language, f"Answer in {target_language}")
     
     prompt = f"""You are a helpful AI assistant.
 
-ABSOLUTE REQUIREMENT: 
-1. Write your ENTIRE answer in {target_language} language ONLY.
-2. Format your output in MARKDOWN with proper structure:
-   - Use **bold** for emphasis and key terms
-   - Use bullet points (- or 1.) for lists
-   - Use proper paragraphs with line breaks
+ABSOLUTE REQUIREMENT: Write your ENTIRE answer in {target_language} language ONLY.
+- Do NOT mix languages
+- Do NOT use English if the target is not English
+- EVERY word in your answer must be in {target_language}
 
 {example}
 
 Task: Answer the question based ONLY on the document(s) below.
-- Provide a concise, factual answer using markdown formatting in {target_language}
+- Provide a concise, factual answer in {target_language}
 - If you cannot find the answer, say so in {target_language}
 
 Document(s):
@@ -986,11 +932,10 @@ Document(s):
 Question:
 {question}
 
-OUTPUT: Markdown-formatted answer in {target_language} language ONLY
+OUTPUT LANGUAGE: {target_language} ONLY
 """
     
     try:
-        apply_ai_delay()  # Add delay before AI request
         response = gemini_model.generate_content(
             prompt,
             generation_config=genai.types.GenerationConfig(temperature=0.3)
