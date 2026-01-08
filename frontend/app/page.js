@@ -723,81 +723,82 @@ export default function Home() {
       {/* Header */}
 
       {/* Main Content Area */}
-      <div className="flex flex-1">
-        {/* Sidebar */}
-        <div className="w-80 bg-gray-800 p-6 flex flex-col border-r border-gray-700">
-          <div className="mb-8">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-12 h-12 bg-red-600 rounded-lg flex items-center justify-center">
-                <FontAwesomeIcon
-                  icon={faFilePdf}
-                  className="text-3xl text-white"
-                />
+      <div className="flex flex-1 overflow-hidden">
+        {/* Sidebar - Sticky */}
+        <div className="w-80 bg-gray-800 flex flex-col border-r border-gray-700 sticky top-0 h-screen overflow-y-auto">
+          <div className="p-6">
+            <div className="mb-8">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-12 h-12 bg-red-600 rounded-lg flex items-center justify-center">
+                  <FontAwesomeIcon
+                    icon={faFilePdf}
+                    className="text-3xl text-white"
+                  />
+                </div>
+                <h1 className="text-2xl font-bold text-white">
+                  AI PDF Summarizer
+                </h1>
               </div>
-              <h1 className="text-2xl font-bold text-white">
-                AI PDF Summarizer
-              </h1>
+              <p className="text-gray-300 text-sm leading-relaxed">
+                Upload PDF dan AI akan membuat ringkasan menggunakan Golang +
+                Python + Gemini AI.
+              </p>
             </div>
-            <p className="text-gray-300 text-sm leading-relaxed">
-              Upload PDF dan AI akan membuat ringkasan menggunakan Golang +
-              Python + Gemini AI.
-            </p>
-          </div>
 
-          {/* Navigation */}
-          <div className="space-y-2 mb-6">
-            <button
-              onClick={() => setView("library")}
-              className={`w-full text-left px-4 py-3 rounded-lg transition ${
-                view === "library"
-                  ? "bg-red-600 text-white"
-                  : "text-gray-300 hover:bg-gray-700"
-              }`}
-            >
-              <FontAwesomeIcon icon={faBook} className="mr-2" />
-              My Library
-            </button>
-            <button
-              onClick={() => setView("upload")}
-              className={`w-full text-left px-4 py-3 rounded-lg transition ${
-                view === "upload"
-                  ? "bg-red-600 text-white"
-                  : "text-gray-300 hover:bg-gray-700"
-              }`}
-            >
-              <FontAwesomeIcon icon={faUpload} className="mr-2" />
-              Upload PDF
-            </button>
-          </div>
-
-          <div className="border-t border-gray-700 pt-6">
-            <div className="flex items-center gap-2 mb-4">
-              <FontAwesomeIcon icon={faStar} className="text-yellow-400" />
-              <h3 className="text-white font-semibold">Features</h3>
+            {/* Navigation */}
+            <div className="space-y-2 mb-6">
+              <button
+                onClick={() => setView("library")}
+                className={`w-full text-left px-4 py-3 rounded-lg transition ${
+                  view === "library"
+                    ? "bg-red-600 text-white"
+                    : "text-gray-300 hover:bg-gray-700"
+                }`}
+              >
+                <FontAwesomeIcon icon={faBook} className="mr-2" />
+                My Library
+              </button>
+              <button
+                onClick={() => setView("upload")}
+                className={`w-full text-left px-4 py-3 rounded-lg transition ${
+                  view === "upload"
+                    ? "bg-red-600 text-white"
+                    : "text-gray-300 hover:bg-gray-700"
+                }`}
+              >
+                <FontAwesomeIcon icon={faUpload} className="mr-2" />
+                Upload PDF
+              </button>
             </div>
-            <div className="space-y-4">
-              <div>
-                <h4 className="text-white font-medium text-sm mb-1">
-                  Simple Summary:
-                </h4>
-                <p className="text-gray-400 text-xs">
-                  Ringkasan sederhana dan mudah dipahami.
-                </p>
+
+            <div className="border-t border-gray-700 pt-6">
+              <div className="flex items-center gap-2 mb-4">
+                <FontAwesomeIcon icon={faStar} className="text-yellow-400" />
+                <h3 className="text-white font-semibold">Features</h3>
               </div>
-              <div>
-                <h4 className="text-white font-medium text-sm mb-1">
-                  Structured Summary:
-                </h4>
-                <p className="text-gray-400 text-xs">
-                  Executive summary + key points + highlights.
-                </p>
-              </div>
-              <div>
-                <h4 className="text-white font-medium text-sm mb-1">
-                  Q&A Mode:
-                </h4>
-                <p className="text-gray-400 text-xs">
-                  Tanyakan pertanyaan tentang isi PDF.
+              <div className="space-y-4">
+                <div>
+                  <h4 className="text-white font-medium text-sm mb-1">
+                    Simple Summary:
+                  </h4>
+                  <p className="text-gray-400 text-xs">
+                    Ringkasan sederhana dan mudah dipahami.
+                  </p>
+                </div>
+                <div>
+                  <h4 className="text-white font-medium text-sm mb-1">
+                    Structured Summary:
+                  </h4>
+                  <p className="text-gray-400 text-xs">
+                    Executive summary + key points + highlights.
+                  </p>
+                </div>
+                <div>
+                  <h4 className="text-white font-medium text-sm mb-1">
+                    Q&A Mode:
+                  </h4>
+                  <p className="text-gray-400 text-xs">
+                    Tanyakan pertanyaan tentang isi PDF.
                 </p>
               </div>
             </div>
@@ -814,12 +815,12 @@ export default function Home() {
               </ul>
             </div>
           </div>
+          </div>
         </div>
 
-        {/* Main Content */}
-        <div className="flex-1 p-8 overflow-y-auto">
-
-          <div className="max-w-4xl mx-auto">
+        {/* Main Content - Scrollable */}
+        <div className="flex-1 overflow-y-auto h-screen">
+          <div className="max-w-4xl mx-auto p-8">
             {/* Error Message */}
             {error && (
               <div className="rounded-lg bg-red-900/50 border border-red-500 p-4 mb-6">
@@ -892,7 +893,7 @@ export default function Home() {
                   </h2>
                 </div>
 
-                            <header className="border-gray-700 sticky top-0 bg-gray-900 z-10 mb-6">
+                            <header className="border-gray-700 bg-gray-900 mb-6">
               {/* Search Bar Row */}
               <div className="flex items-center justify-center py-3">
                 {/* Search Bar */}
