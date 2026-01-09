@@ -1,156 +1,121 @@
 # 📄 PDF AI Summarizer
 
-> AI-powered PDF summarization with Google Gemini AI, job queue system, and audit logging
+> AI-powered PDF summarization with Google Gemini AI, checkpoint/resume system, and smart chunking
 
 [![Golang](https://img.shields.io/badge/Go-1.21+-00ADD8?style=flat&logo=go)](https://golang.org/)
 [![Python](https://img.shields.io/badge/Python-3.11+-3776AB?style=flat&logo=python)](https://www.python.org/)
-[![Next.js](https://img.shields.io/badge/Next.js-14-000000?style=flat&logo=next.js)](https://nextjs.org/)
+[![Next.js](https://img.shields.io/badge/Next.js-16-000000?style=flat&logo=next.js)](https://nextjs.org/)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-336791?style=flat&logo=postgresql)](https://www.postgresql.org/)
 [![RabbitMQ](https://img.shields.io/badge/RabbitMQ-3.13-FF6600?style=flat&logo=rabbitmq)](https://www.rabbitmq.com/)
-[![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?style=flat&logo=docker)](https://www.docker.com/)
+[![MinIO](https://img.shields.io/badge/MinIO-S3-C72E49?style=flat&logo=minio)](https://min.io/)
 
-## ✨ Features
+## ✨ Key Features
 
-- **AI Summarization** - Google Gemini 2.5 Flash with temperature 0.3 for accuracy
-- **4 Stummary Modes** - Simple, Structured, Q&A
-- **Multi-Language** - 15+ languages (English, Indonesian, Spanish, French, German, etc.)
-- **Page Slelection** - Summarize specific pages (e.g., 1-5, 7, 9)
-- **Job Queue System** - RabbitMQ with auto-retry (max 3x) and Dead Letter Queue
-- **Audit Logging** - Track all API requests with async processing
-- **Summary History** - View past summaries with PostgreSQL trigger auto-update
-- **Export** - Copy or download summaries
+- **3 Summary Modes** - Simple, Structured, Q&A
+- **5 Languages** - 🇮🇩 Indonesian, 🇬🇧 English, 🇪🇸 Spanish, 🇫🇷 French, 🇩🇪 German
+- **Checkpoint/Resume** - Resume failed jobs, save up to 60% cost
+- **Smart Chunking** - Handle large documents (10k words/chunk)
+- **Advanced Filters** - Search, sort, filter by mode/language/date
+- **Export Options** - Copy, TXT, JSON, CSV
+- **MinIO Storage** - S3-compatible object storage
+- **Job Queue** - RabbitMQ with auto-retry (3x)
 
 ## 🏗️ Architecture
 
 ```
-┌──────────┐    ┌─────────┐    ┌──────────┐    ┌──────────┐
-│ Frontend │───▶│ Backend │───▶│ RabbitMQ │───▶│  Worker  │
-│ Next.js  │◀───│ Golang  │◀───│  Queue   │    │ Consumer │
-└──────────┘    └────┬────┘    └──────────┘    └────┬─────┘
-                     │                               │
-                     ▼                               ▼
-              ┌─────────────┐              ┌──────────────┐
-              │ PostgreSQL  │              │ AI Service   │
-              │  Database   │              │ Python+Gemini│
-              └─────────────┘              └──────────────┘
-                     │
-                     ▼
-              ┌─────────────┐
-              │   MinIO     │
-              │   Storage   │
-              └─────────────┘
+Frontend (Next.js) → Backend (Golang) → RabbitMQ → Worker
+                          ↓                          ↓
+                    PostgreSQL              AI Service (Python + Gemini)
+                          ↓
+                    MinIO (S3)
 ```
 
-**Stack:** Next.js 14 • Golang Fiber v2 • Python FastAPI • PostgreSQL 16 • RabbitMQ 3.13 • MinIO
+**Stack:** Next.js 16 • Golang Fiber • Python FastAPI • PostgreSQL • RabbitMQ • MinIO
 
-## � tQuick Start
-
-**Prerequisites:** Docker, Docker Compose, [Gemini API Key](https://makersuite.google.com/app/apikey)
+## 🚀 Quick Start
 
 ```bash
-# 1. Clone repository
-git clone https://github.com/yourusername/pdf-ai-summarizer.git
+# 1. Clone & setup
+git clone <repo-url>
 cd pdf-ai-summarizer
-
-# 2. Setup environment
 cp .env.example .env
-# Edit .env and add: GEMINI_API_KEY=your_key_here
+# Edit .env: Add GEMINI_API_KEY
 
-# 3. Start services
+# 2. Start with Docker
 docker-compose up --build
 
-# 4. Access
-# Frontend:        http://localhost:3000
-# Backend API:     http://localhost:8080
-# RabbitMQ UI:     http://localhost:15672 (admin/admin123)
-# MinIO Console:   http://localhost:9001 (admin/admin123)
+# 3. Access
+# Frontend:      http://localhost:3000
+# Backend API:   http://localhost:8080
+# RabbitMQ UI:   http://localhost:15672
+# MinIO Console: http://localhost:9001
 ```
 
-## 📖 API Usage
+## 📖 API Examples
 
-### PDF Summarization (Asynchronous with Queue)
+### Create Summary Job
 ```bash
-# Create summarization job (returns immediately)
 POST /api/pdfs/:id/summarize
 {
-  "mode": "simple|structured|multi|qa",
-  "language": "english",
-  "pages": "1-5",
-  "question": "What is the main topic?" // for QA mode
+  "mode": "simple|structured|qa",
+  "language": "indonesian",
+  "pages": "1-5,7",  // optional
+  "question": "..."  // for QA mode
 }
+```
 
-# Response: Job created
-{
-  "success": true,
-  "data": {
-    "id": 123,
-    "status": "pending",
-    "mode": "simple",
-    "created_at": "2026-01-07T10:00:00Z"
-  }
-}
-
-# Check job status (poll every 2 seconds)
+### Check Job Status
+```bash
 GET /api/jobs/:jobId
+```
 
-# List all jobs (with filters)
-GET /api/jobs?status=pending&pdf_id=1
-
-# Retry failed job
+### Retry Failed Job (Resume from Checkpoint)
+```bash
 POST /api/jobs/:jobId/retry
 ```
 
-### Audit Logging
-```bash
-# View audit logs
-GET /api/audit/logs?action=upload&status=success&page=1&limit=20
+## 🔄 Checkpoint System
 
-# Get statistics
-GET /api/audit/stats
+**How it works:**
+1. Job processes PDF page by page
+2. Progress saved after each page/chunk
+3. On failure: Job can resume from last checkpoint
+4. **Benefit:** Save up to 60% on AI costs for failed jobs
 
-# Cleanup old logs
-DELETE /api/audit/logs/cleanup?days=30
-```
+**Permanent errors (no retry):**
+- File not found, corrupted PDF, invalid format, encrypted PDF
 
-## 🔄 Job Queue System
+## 🧩 Chunking System
 
-**How It Works:**
-1. User creates job → Job saved to DB (status: pending)
-2. Job published to RabbitMQ queue
-3. Worker consumes job → Processes with AI service
-4. **On Error:** Auto-retry up to 3 times with 5s delay
-5. **After 3 Failures:** Job moved to Dead Letter Queue (DLQ)
-6. **Manual Recovery:** User can retry failed jobs via API
+For large documents (>100k chars):
+- **Chunk size:** 10,000 words (reduced API calls by 60%)
+- **Overlap:** 500 words (context continuity)
+- **Process:** Summarize each chunk → Combine results
 
-**Benefits:**
-- ✅ Resilient to temporary errors (network, rate limits)
-- ✅ Non-blocking (user doesn't wait for long processing)
-- ✅ Scalable (add more workers for high load)
-- ✅ Traceable (all jobs logged in database)
-
-## 📊 Database Schema
-
-**4 Tables:**
-- `pdf_files` - PDF metadata + latest summary (auto-updated via trigger)
-- `summary_logs` - Complete history of all summarizations
-- `summarization_jobs` - Job queue tracking (status, retries, errors)
-- `audit_logs` - API request logging (async via RabbitMQ)
-
-## 📁 Project Structure
+## �  Project Structure
 
 ```
 pdf-ai-summarizer/
-├── frontend/           # Next.js 14 + TailwindCSS
-├── backend/            # Golang Fiber v2 + GORM
-│   ├── handlers/       # API endpoints
-│   ├── models/         # Database models
-│   ├── queue/          # RabbitMQ setup
-│   ├── worker/         # Job consumer
-│   └── middleware/     # Audit logging
-├── ai-service/         # Python FastAPI + Gemini AI
-├── docker-compose.yml  # All services
-└── .env                # Configuration (gitignored)
+├── frontend/          # Next.js 16
+│   ├── app/page.js   # Main UI
+│   ├── lib/          # API, utils, filters, constants
+│   └── components/   # Reusable components
+├── backend/          # Golang Fiber
+│   ├── handlers/     # API endpoints
+│   ├── models/       # Database models
+│   ├── queue/        # RabbitMQ
+│   ├── worker/       # Job consumer
+│   └── storage/      # MinIO client
+├── ai-service/       # Python + Gemini AI
+└── docker-compose.yml
 ```
+
+## 📚 Documentation
+
+- [Refactoring Guide](frontend/REFACTORING_GUIDE.md) - Frontend refactoring details
+- [Chunking Implementation](CHUNKING_IMPLEMENTATION.md) - Chunking system
+- [Header Feature](HEADER_FEATURE.md) - Search & filter
+- [Notification System](NOTIFICATION_SYSTEM.md) - Notifications
 
 ## 🚢 Production
 
@@ -158,6 +123,9 @@ pdf-ai-summarizer/
 docker-compose -f docker-compose.prod.yml up -d --build
 ```
 
-Configure SSL in `nginx.conf` and update environment variables for production.
+Set production environment variables in `.env`:
+- `GEMINI_API_KEY` - Your Gemini API key
+- `DATABASE_URL` - PostgreSQL connection
+- `RABBITMQ_URL` - RabbitMQ connection
+- `MINIO_ENDPOINT`, `MINIO_ACCESS_KEY`, `MINIO_SECRET_KEY` - MinIO config
 
----
