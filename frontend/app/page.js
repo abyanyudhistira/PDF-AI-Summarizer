@@ -535,7 +535,7 @@ export default function Home() {
 
       {/* Main Content Area */}
       <div className="flex flex-1 overflow-hidden">
-        {/* Sidebar - Sticky */}
+        {/* Sidebar */}
         <div className="w-80 bg-gray-800 flex flex-col border-r border-gray-700 sticky top-0 h-screen overflow-y-auto">
           <div className="p-6">
             <div className="mb-8">
@@ -608,7 +608,7 @@ export default function Home() {
                   <h4 className="text-white font-medium text-sm mb-1">
                     Q&A Mode:
                   </h4>
-                  <p className="text-gray-400 text-xs">
+                  <p className="text-gray-400 text-xs pb-4">
                     Tanyakan pertanyaan tentang isi PDF.
                   </p>
                 </div>
