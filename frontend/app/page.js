@@ -273,6 +273,12 @@ export default function Home() {
   const [summaryPage, setSummaryPage] = useState(1);
   const itemsPerPage = 5; // Changed from 10 to 5
 
+  // Summary sort & filter states
+  const [summarySortBy, setSummarySortBy] = useState("latest"); // latest, oldest, mode, processing-time
+  const [summaryFilterMode, setSummaryFilterMode] = useState("all"); // all, simple, structured, qa
+  const [summaryFilterDate, setSummaryFilterDate] = useState("all"); // all, today, week, month
+  const [summaryFilterLanguage, setSummaryFilterLanguage] = useState("all"); // all, indonesian, english, spanish, french, german
+
   // Configuration
   const [mode, setMode] = useState("simple");
   const [language, setLanguage] = useState("indonesian");
@@ -297,14 +303,21 @@ export default function Home() {
     setCurrentPage(1);
   }, [searchQuery, sortBy, filterType, filterDate]);
 
+  // Reset summary pagination when filters change
+  useEffect(() => {
+    setSummaryPage(1);
+  }, [summarySortBy, summaryFilterMode, summaryFilterDate, summaryFilterLanguage]);
+
   // Click outside handler to close dropdowns
   useEffect(() => {
     const handleClickOutside = (event) => {
       // Check if click is outside notification or filter dropdowns
       const notifDropdown = document.getElementById("notification-dropdown");
       const filterDropdown = document.getElementById("filter-dropdown");
+      const summaryFilterDropdown = document.getElementById("summary-filter-dropdown");
       const notifButton = document.getElementById("notification-button");
       const filterButton = document.getElementById("filter-button");
+      const summaryFilterButton = document.getElementById("summary-filter-button");
 
       if (
         showNotifications &&
@@ -321,7 +334,11 @@ export default function Home() {
         filterDropdown &&
         !filterDropdown.contains(event.target) &&
         filterButton &&
-        !filterButton.contains(event.target)
+        !filterButton.contains(event.target) &&
+        summaryFilterDropdown &&
+        !summaryFilterDropdown.contains(event.target) &&
+        summaryFilterButton &&
+        !summaryFilterButton.contains(event.target)
       ) {
         setShowFilters(false);
       }
@@ -430,11 +447,59 @@ export default function Home() {
   const endIndex = startIndex + itemsPerPage;
   const paginatedPDFs = filteredPDFs.slice(startIndex, endIndex);
 
+  // Filter and Sort Summary History
+  const filteredSummaries = summaryHistory
+    .filter((summary) => {
+      // Filter by mode
+      let matchesMode = true;
+      if (summaryFilterMode !== "all") {
+        matchesMode = summary.mode === summaryFilterMode;
+      }
+
+      // Filter by language
+      let matchesLanguage = true;
+      if (summaryFilterLanguage !== "all") {
+        matchesLanguage = summary.language === summaryFilterLanguage;
+      }
+
+      // Filter by date
+      let matchesDate = true;
+      if (summaryFilterDate !== "all" && summary.created_at) {
+        const createdDate = new Date(summary.created_at);
+        const now = new Date();
+        const diffTime = now - createdDate;
+        const diffDays = diffTime / (1000 * 60 * 60 * 24);
+
+        if (summaryFilterDate === "today") {
+          matchesDate = diffDays < 1;
+        } else if (summaryFilterDate === "week") {
+          matchesDate = diffDays < 7;
+        } else if (summaryFilterDate === "month") {
+          matchesDate = diffDays < 30;
+        }
+      }
+
+      return matchesMode && matchesLanguage && matchesDate;
+    })
+    .sort((a, b) => {
+      // Sort logic
+      if (summarySortBy === "latest") {
+        return new Date(b.created_at) - new Date(a.created_at);
+      } else if (summarySortBy === "oldest") {
+        return new Date(a.created_at) - new Date(b.created_at);
+      } else if (summarySortBy === "mode") {
+        return a.mode.localeCompare(b.mode);
+      } else if (summarySortBy === "processing-time") {
+        return (b.processing_time || 0) - (a.processing_time || 0);
+      }
+      return 0;
+    });
+
   // Pagination for summary history
-  const totalSummaryPages = Math.ceil(summaryHistory.length / itemsPerPage);
+  const totalSummaryPages = Math.ceil(filteredSummaries.length / itemsPerPage);
   const summaryStartIndex = (summaryPage - 1) * itemsPerPage;
   const summaryEndIndex = summaryStartIndex + itemsPerPage;
-  const paginatedSummaries = summaryHistory.slice(
+  const paginatedSummaries = filteredSummaries.slice(
     summaryStartIndex,
     summaryEndIndex
   );
@@ -563,6 +628,9 @@ export default function Home() {
     setProcessingStatus("Creating job...");
     setCurrentJobId(null);
 
+    // Track the initial view to determine if user is waiting
+    const initialView = view;
+
     try {
       const options = {
         mode,
@@ -592,13 +660,6 @@ export default function Home() {
               const summaryResult = await api.getSummary(job.summary_log_id);
               setSummary(summaryResult.data);
 
-              // Add success notification
-              addNotification(
-                `Summary for "${selectedPDF.original_filename}" completed! Click to view.`,
-                "success",
-                "view-result" // Action identifier
-              );
-
               // Reload summary history
               try {
                 const historyResult = await api.getSummaries(selectedPDF.id);
@@ -607,11 +668,26 @@ export default function Home() {
                 console.error("Failed to reload summary history:", err);
               }
 
-              // Auto-redirect ONLY if still loading (user is waiting)
-              // If loading is false, user has navigated away
-              if (loading) {
-                setView("result");
-              }
+              // Check current view to determine redirect behavior
+              // Use a callback to get the latest view state
+              setView((currentView) => {
+                // If user is still on config page (waiting), auto-redirect to result
+                if (currentView === "config" || currentView === initialView) {
+                  addNotification(
+                    `Summary for "${selectedPDF.original_filename}" completed!`,
+                    "success"
+                  );
+                  return "result";
+                } else {
+                  // User navigated away, just show notification
+                  addNotification(
+                    `Summary for "${selectedPDF.original_filename}" completed! Click to view.`,
+                    "success",
+                    "view-result"
+                  );
+                  return currentView; // Keep current view
+                }
+              });
               
               setLoading(false);
               setProcessingStatus("");
@@ -640,13 +716,13 @@ export default function Home() {
             // Add notification with resume action if checkpoint exists
             if (hasCheckpoint) {
               addNotification(
-                `⚠️ Summary failed for "${selectedPDF.original_filename}". Progress saved - you can resume.`,
+                `Summary failed for "${selectedPDF.original_filename}". Progress saved - you can resume.`,
                 "error",
                 "resume-job" // Action to resume
               );
             } else {
               addNotification(
-                `❌ Summary failed for "${selectedPDF.original_filename}": ${job.error_msg || "Unknown error"}`,
+                `Summary failed for "${selectedPDF.original_filename}": ${job.error_msg || "Unknown error"}`,
                 "error"
               );
             }
@@ -666,15 +742,18 @@ export default function Home() {
       // Timeout after 15 minutes
       setTimeout(() => {
         clearInterval(pollInterval);
-        if (loading) {
-          setError("Processing timeout. Please check job status later.");
-          addNotification(
-            `Processing timeout for "${selectedPDF.original_filename}". Please check job status later.`,
-            "error"
-          );
+        setView((currentView) => {
+          if (currentView === "config" || currentView === initialView) {
+            setError("Processing timeout. Please check job status later.");
+            addNotification(
+              `Processing timeout for "${selectedPDF.original_filename}". Please check job status later.`,
+              "error"
+            );
+          }
           setLoading(false);
           setProcessingStatus("");
-        }
+          return currentView;
+        });
       }, 15 * 60 * 1000);
     } catch (err) {
       setError(err.message);
@@ -700,9 +779,10 @@ export default function Home() {
   const copyText = async (text) => {
     try {
       await navigator.clipboard.writeText(text);
-      alert("Copied!");
+      addNotification("Text copied to clipboard!", "success");
     } catch (err) {
       console.error("Failed to copy:", err);
+      addNotification("Failed to copy text", "error");
     }
   };
 
@@ -716,6 +796,107 @@ export default function Home() {
     a.click();
     a.remove();
     URL.revokeObjectURL(url);
+    addNotification(`Downloaded as ${filename}`, "success");
+  };
+
+  const exportToJSON = (summaryData, filename) => {
+    try {
+      // Create a clean JSON object with all summary data
+      const exportData = {
+        pdf_filename: selectedPDF?.original_filename || "Unknown",
+        summary_mode: summaryData.mode,
+        language: summaryData.language,
+        created_at: summaryData.created_at,
+        processing_time: summaryData.processing_time,
+        pages_processed: summaryData.pages_processed,
+        summary: {}
+      };
+
+      // Add mode-specific data
+      if (summaryData.mode === "simple") {
+        exportData.summary.text = summaryData.summary_text;
+      } else if (summaryData.mode === "structured") {
+        exportData.summary.executive_summary = summaryData.executive_summary;
+        exportData.summary.key_points = summaryData.bullets ? JSON.parse(summaryData.bullets) : [];
+        exportData.summary.highlights = summaryData.highlights ? JSON.parse(summaryData.highlights) : [];
+      } else if (summaryData.mode === "qa") {
+        exportData.summary.question = summaryData.qa_question;
+        exportData.summary.answer = summaryData.qa_answer;
+      }
+
+      const jsonString = JSON.stringify(exportData, null, 2);
+      const blob = new Blob([jsonString], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      addNotification(`Exported as ${filename}`, "success");
+    } catch (err) {
+      console.error("Failed to export JSON:", err);
+      addNotification("Failed to export JSON", "error");
+    }
+  };
+
+  const exportToCSV = (summaryData, filename) => {
+    try {
+      let csvContent = "";
+      
+      // CSV Header
+      csvContent += "Field,Value\n";
+      
+      // Basic info
+      csvContent += `"PDF Filename","${(selectedPDF?.original_filename || "Unknown").replace(/"/g, '""')}"\n`;
+      csvContent += `"Summary Mode","${summaryData.mode}"\n`;
+      csvContent += `"Language","${summaryData.language}"\n`;
+      csvContent += `"Created At","${summaryData.created_at}"\n`;
+      csvContent += `"Processing Time","${summaryData.processing_time}s"\n`;
+      csvContent += `"Pages Processed","${summaryData.pages_processed || 'N/A'}"\n`;
+      csvContent += "\n";
+
+      // Mode-specific content
+      if (summaryData.mode === "simple") {
+        csvContent += `"Summary Text","${(summaryData.summary_text || "").replace(/"/g, '""').replace(/\n/g, ' ')}"\n`;
+      } else if (summaryData.mode === "structured") {
+        csvContent += `"Executive Summary","${(summaryData.executive_summary || "").replace(/"/g, '""').replace(/\n/g, ' ')}"\n`;
+        csvContent += "\n";
+        
+        // Key Points
+        const bullets = summaryData.bullets ? JSON.parse(summaryData.bullets) : [];
+        csvContent += "Key Points\n";
+        bullets.forEach((bullet, i) => {
+          csvContent += `"${i + 1}","${bullet.replace(/"/g, '""')}"\n`;
+        });
+        csvContent += "\n";
+        
+        // Highlights
+        const highlights = summaryData.highlights ? JSON.parse(summaryData.highlights) : [];
+        csvContent += "Highlights\n";
+        highlights.forEach((highlight, i) => {
+          csvContent += `"${i + 1}","${highlight.replace(/"/g, '""')}"\n`;
+        });
+      } else if (summaryData.mode === "qa") {
+        csvContent += `"Question","${(summaryData.qa_question || "").replace(/"/g, '""')}"\n`;
+        csvContent += `"Answer","${(summaryData.qa_answer || "").replace(/"/g, '""').replace(/\n/g, ' ')}"\n`;
+      }
+
+      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      addNotification(`Exported as ${filename}`, "success");
+    } catch (err) {
+      console.error("Failed to export CSV:", err);
+      addNotification("Failed to export CSV", "error");
+    }
   };
 
   return (
@@ -1303,12 +1484,121 @@ export default function Home() {
                   >
                     ← Back to Library
                   </button>
-                  <h2 className="text-3xl font-bold text-white mb-2">
-                    Summary History
-                  </h2>
-                  <p className="text-gray-400">
-                    {selectedPDF.original_filename}
-                  </p>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h2 className="text-3xl font-bold text-white mb-2">
+                        Summary History
+                      </h2>
+                      <p className="text-gray-400">
+                        {selectedPDF.original_filename}
+                      </p>
+                    </div>
+                    
+                    {/* Filter & Sort for Summary History */}
+                    {summaryHistory.length > 0 && (
+                      <div className="relative">
+                        <button
+                          id="summary-filter-button"
+                          onClick={() => setShowFilters(!showFilters)}
+                          className="flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition"
+                        >
+                          <FontAwesomeIcon icon={faFilter} />
+                          <span>Filter & Sort</span>
+                        </button>
+
+                        {/* Dropdown */}
+                        {showFilters && (
+                          <div
+                            id="summary-filter-dropdown"
+                            className="absolute right-0 mt-2 w-64 bg-gray-800 border border-gray-700 rounded-lg shadow-xl z-50 p-4"
+                          >
+                            {/* Sort Options */}
+                            <div className="mb-4">
+                              <label className="block text-white text-sm font-medium mb-2">
+                                Sort By
+                              </label>
+                              <select
+                                value={summarySortBy}
+                                onChange={(e) => setSummarySortBy(e.target.value)}
+                                className="w-full bg-gray-700 text-white px-3 py-2 rounded-lg border border-gray-600 focus:border-purple-500 focus:outline-none"
+                              >
+                                <option value="latest">Latest First</option>
+                                <option value="oldest">Oldest First</option>
+                                <option value="mode">By Mode</option>
+                                <option value="processing-time">By Processing Time</option>
+                              </select>
+                            </div>
+
+                            {/* Filter by Mode */}
+                            <div className="mb-4">
+                              <label className="block text-white text-sm font-medium mb-2">
+                                Filter by Mode
+                              </label>
+                              <select
+                                value={summaryFilterMode}
+                                onChange={(e) => setSummaryFilterMode(e.target.value)}
+                                className="w-full bg-gray-700 text-white px-3 py-2 rounded-lg border border-gray-600 focus:border-purple-500 focus:outline-none"
+                              >
+                                <option value="all">All Modes</option>
+                                <option value="simple">Simple</option>
+                                <option value="structured">Structured</option>
+                                <option value="qa">Q&A</option>
+                              </select>
+                            </div>
+
+                            {/* Filter by Language */}
+                            <div className="mb-4">
+                              <label className="block text-white text-sm font-medium mb-2">
+                                Filter by Language
+                              </label>
+                              <select
+                                value={summaryFilterLanguage}
+                                onChange={(e) => setSummaryFilterLanguage(e.target.value)}
+                                className="w-full bg-gray-700 text-white px-3 py-2 rounded-lg border border-gray-600 focus:border-purple-500 focus:outline-none"
+                              >
+                                <option value="all">All Languages</option>
+                                <option value="indonesian">🇮🇩 Indonesian</option>
+                                <option value="english">🇬🇧 English</option>
+                                <option value="spanish">🇪🇸 Spanish</option>
+                                <option value="french">🇫🇷 French</option>
+                                <option value="german">🇩🇪 German</option>
+                              </select>
+                            </div>
+
+                            {/* Filter by Date */}
+                            <div>
+                              <label className="block text-white text-sm font-medium mb-2">
+                                Filter by Date
+                              </label>
+                              <select
+                                value={summaryFilterDate}
+                                onChange={(e) => setSummaryFilterDate(e.target.value)}
+                                className="w-full bg-gray-700 text-white px-3 py-2 rounded-lg border border-gray-600 focus:border-purple-500 focus:outline-none"
+                              >
+                                <option value="all">All Time</option>
+                                <option value="today">Today</option>
+                                <option value="week">This Week</option>
+                                <option value="month">This Month</option>
+                              </select>
+                            </div>
+
+                            {/* Reset Button */}
+                            <button
+                              onClick={() => {
+                                setSummarySortBy("latest");
+                                setSummaryFilterMode("all");
+                                setSummaryFilterLanguage("all");
+                                setSummaryFilterDate("all");
+                              }}
+                              className="w-full mt-4 px-3 py-2 bg-gray-600 hover:bg-gray-500 text-white rounded-lg text-sm transition"
+                            >
+                              Reset Filters
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 <div className="mb-6">
@@ -1335,6 +1625,27 @@ export default function Home() {
                       className="bg-red-600 hover:bg-red-700 text-white px-6 py-3 rounded-lg transition"
                     >
                       Create First Summary
+                    </button>
+                  </div>
+                ) : filteredSummaries.length === 0 ? (
+                  <div className="text-center py-16 bg-gray-800 rounded-xl">
+                    <FontAwesomeIcon
+                      icon={faFilter}
+                      className="text-6xl text-gray-600 mb-4"
+                    />
+                    <p className="text-gray-400 text-lg mb-4">
+                      No summaries match your filters
+                    </p>
+                    <button
+                      onClick={() => {
+                        setSummarySortBy("latest");
+                        setSummaryFilterMode("all");
+                        setSummaryFilterLanguage("all");
+                        setSummaryFilterDate("all");
+                      }}
+                      className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-lg transition"
+                    >
+                      Reset Filters
                     </button>
                   </div>
                 ) : (
@@ -1683,7 +1994,8 @@ export default function Home() {
                               summary.qa_answer
                           )
                         }
-                        className="bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-lg text-sm transition"
+                        className="bg-white/20 hover:bg-white/30 text-white px-3 py-2 rounded-lg text-sm transition"
+                        title="Copy summary text"
                       >
                         <FontAwesomeIcon icon={faCopy} className="mr-2" />
                         Copy
@@ -1697,10 +2009,37 @@ export default function Home() {
                             `${selectedPDF?.original_filename}-summary.txt`
                           )
                         }
-                        className="bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-lg text-sm transition"
+                        className="bg-white/20 hover:bg-white/30 text-white px-3 py-2 rounded-lg text-sm transition"
+                        title="Download as TXT"
                       >
                         <FontAwesomeIcon icon={faDownload} className="mr-2" />
-                        Download
+                        TXT
+                      </button>
+                      <button
+                        onClick={() =>
+                          exportToJSON(
+                            summary,
+                            `${selectedPDF?.original_filename}-summary.json`
+                          )
+                        }
+                        className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg text-sm transition"
+                        title="Export as JSON"
+                      >
+                        <FontAwesomeIcon icon={faDownload} className="mr-2" />
+                        JSON
+                      </button>
+                      <button
+                        onClick={() =>
+                          exportToCSV(
+                            summary,
+                            `${selectedPDF?.original_filename}-summary.csv`
+                          )
+                        }
+                        className="bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded-lg text-sm transition"
+                        title="Export as CSV"
+                      >
+                        <FontAwesomeIcon icon={faDownload} className="mr-2" />
+                        CSV
                       </button>
                     </div>
                   </div>

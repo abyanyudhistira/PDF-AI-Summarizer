@@ -42,12 +42,12 @@ func InitMinio() error {
 		if err != nil {
 			return fmt.Errorf("failed to create bucket: %v", err)
 		}
-		log.Printf("✅ MinIO bucket '%s' created", bucketName)
+		log.Printf("MinIO bucket '%s' created", bucketName)
 	} else {
-		log.Printf("✅ MinIO bucket '%s' already exists", bucketName)
+		log.Printf("MinIO bucket '%s' already exists", bucketName)
 	}
 
-	log.Println("✅ MinIO client initialized successfully")
+	log.Println("MinIO client initialized successfully")
 	return nil
 }
 
@@ -77,17 +77,17 @@ func UploadFile(file *multipart.FileHeader, objectName string) (string, error) {
 		if err == nil {
 			// Success!
 			objectPath := fmt.Sprintf("%s/%s", bucketName, objectName)
-			log.Printf("📤 File uploaded to MinIO: %s (attempt %d/%d)", objectPath, attempt, maxRetries)
+			log.Printf("File uploaded to MinIO: %s (attempt %d/%d)", objectPath, attempt, maxRetries)
 			return objectPath, nil
 		}
 
 		// Failed, save error
 		lastErr = err
-		log.Printf("⚠️  Upload attempt %d/%d failed: %v", attempt, maxRetries, err)
+		log.Printf("Upload attempt %d/%d failed: %v", attempt, maxRetries, err)
 
 		// Retry with delay (except on last attempt)
 		if attempt < maxRetries {
-			log.Printf("⏳ Retrying in %v...", retryDelay)
+			log.Printf("Retrying in %v...", retryDelay)
 			time.Sleep(retryDelay)
 			retryDelay *= 2 // Exponential backoff
 		}
@@ -109,12 +109,12 @@ func DownloadFile(objectName string) (io.ReadCloser, error) {
 	for attempt := 1; attempt <= maxRetries; attempt++ {
 		object, err := MinioClient.GetObject(ctx, bucketName, objectName, minio.GetObjectOptions{})
 		if err == nil {
-			log.Printf("📥 File downloaded from MinIO: %s (attempt %d/%d)", objectName, attempt, maxRetries)
+			log.Printf("File downloaded from MinIO: %s (attempt %d/%d)", objectName, attempt, maxRetries)
 			return object, nil
 		}
 
 		lastErr = err
-		log.Printf("⚠️  Download attempt %d/%d failed: %v", attempt, maxRetries, err)
+		log.Printf("Download attempt %d/%d failed: %v", attempt, maxRetries, err)
 
 		if attempt < maxRetries {
 			log.Printf("⏳ Retrying in %v...", retryDelay)
@@ -139,12 +139,12 @@ func DeleteFile(objectName string) error {
 	for attempt := 1; attempt <= maxRetries; attempt++ {
 		err := MinioClient.RemoveObject(ctx, bucketName, objectName, minio.RemoveObjectOptions{})
 		if err == nil {
-			log.Printf("🗑️  File deleted from MinIO: %s (attempt %d/%d)", objectName, attempt, maxRetries)
+			log.Printf("File deleted from MinIO: %s (attempt %d/%d)", objectName, attempt, maxRetries)
 			return nil
 		}
 
 		lastErr = err
-		log.Printf("⚠️  Delete attempt %d/%d failed: %v", attempt, maxRetries, err)
+		log.Printf("Delete attempt %d/%d failed: %v", attempt, maxRetries, err)
 
 		if attempt < maxRetries {
 			log.Printf("⏳ Retrying in %v...", retryDelay)

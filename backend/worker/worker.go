@@ -12,7 +12,7 @@ import (
 
 // StartWorker starts RabbitMQ consumer
 func StartWorker() {
-	log.Println("🔄 Starting RabbitMQ job consumer...")
+	log.Println("Starting RabbitMQ job consumer...")
 
 	// Get messages from queue
 	msgs, err := queue.Channel.Consume(
@@ -37,7 +37,7 @@ func StartWorker() {
 		}
 	}()
 
-	log.Println("✅ Worker started. Waiting for jobs...")
+	log.Println("Worker started. Waiting for jobs...")
 	<-forever
 }
 
@@ -51,13 +51,13 @@ func processMessage(msg amqp.Delivery) {
 		return
 	}
 
-	log.Printf("📥 Processing job %d (attempt %d)", jobMsg.JobID, msg.Headers["x-delivery-count"])
+	log.Printf("Processing job %d (attempt %d)", jobMsg.JobID, msg.Headers["x-delivery-count"])
 
 	// Process the job with checkpoint/resume capability
 	err = handlers.ProcessJobWithCheckpoint(jobMsg.JobID)
 	
 	if err != nil {
-		log.Printf("❌ Job %d failed: %v", jobMsg.JobID, err)
+		log.Printf("Job %d failed: %v", jobMsg.JobID, err)
 		
 		// Check if error is permanent (don't requeue)
 		errMsg := err.Error()
@@ -76,7 +76,7 @@ func processMessage(msg amqp.Delivery) {
 		for _, permErr := range permanentErrors {
 			if contains(errMsg, permErr) {
 				isPermanent = true
-				log.Printf("🚫 Permanent error - not requeuing job %d", jobMsg.JobID)
+				log.Printf("Permanent error - not requeuing job %d", jobMsg.JobID)
 				break
 			}
 		}
@@ -89,7 +89,7 @@ func processMessage(msg amqp.Delivery) {
 			msg.Nack(false, true)
 		}
 	} else {
-		log.Printf("✅ Job %d completed successfully", jobMsg.JobID)
+		log.Printf("Job %d completed successfully", jobMsg.JobID)
 		// Acknowledge successful processing
 		msg.Ack(false)
 	}

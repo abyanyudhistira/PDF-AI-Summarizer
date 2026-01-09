@@ -10,7 +10,7 @@ import (
 
 // StartAuditWorker starts audit log consumer
 func StartAuditWorker() {
-	log.Println("📝 Starting audit log consumer...")
+	log.Println("Starting audit log consumer...")
 
 	// Get messages from queue
 	msgs, err := queue.Channel.Consume(
@@ -33,14 +33,14 @@ func StartAuditWorker() {
 
 			err := json.Unmarshal(msg.Body, &auditLog)
 			if err != nil {
-				log.Printf("❌ Failed to parse audit log: %v", err)
+				log.Printf("Failed to parse audit log: %v", err)
 				msg.Nack(false, false)
 				continue
 			}
 
 			// Save to database
 			if err := database.DB.Create(&auditLog).Error; err != nil {
-				log.Printf("❌ Failed to save audit log: %v", err)
+				log.Printf("Failed to save audit log: %v", err)
 				msg.Nack(false, true) // Requeue
 				continue
 			}
@@ -50,5 +50,5 @@ func StartAuditWorker() {
 		}
 	}()
 
-	log.Println("✅ Audit worker started")
+	log.Println("Audit worker started")
 }

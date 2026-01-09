@@ -70,14 +70,14 @@ class QAResponse(BaseModel):
 
 # ==================== HELPER FUNCTIONS ====================
 
-def chunk_text(text: str, chunk_size: int = 4000, overlap: int = 200) -> List[str]:
+def chunk_text(text: str, chunk_size: int = 10000, overlap: int = 500) -> List[str]:
     """
     Split text into chunks with overlap for context continuity
     
     Args:
         text: Text to split
-        chunk_size: Number of words per chunk
-        overlap: Number of words to overlap between chunks
+        chunk_size: Number of words per chunk (default: 10000 words = ~50-60k chars)
+        overlap: Number of words to overlap between chunks (default: 500 words)
     
     Returns:
         List of text chunks
@@ -333,10 +333,10 @@ def summarize_text(text: str, target_language: str = None) -> str:
         if not target_language:
             target_language = detect_language(text[:1000])
         
-        # Check if text needs chunking (>30k chars = ~6k words)
-        if len(text) > 30000:
+        # Check if text needs chunking (>100k chars = ~20k words)
+        if len(text) > 100000:
             # Split into chunks
-            chunks = chunk_text(text, chunk_size=4000, overlap=200)
+            chunks = chunk_text(text, chunk_size=10000, overlap=500)
             print(f"📊 Processing {len(chunks)} chunks for large document")
             
             # Summarize each chunk
@@ -422,8 +422,8 @@ def summarize_hierarchical(text: str, target_language: str = None) -> str:
             target_language = detect_language(text[:1000])
         
         # Check if text needs chunking
-        if len(text) > 30000:
-            chunks = chunk_text(text, chunk_size=4000, overlap=200)
+        if len(text) > 100000:
+            chunks = chunk_text(text, chunk_size=10000, overlap=500)
             print(f"📊 Processing {len(chunks)} chunks for hierarchical summary")
             
             chunk_summaries = []
@@ -509,8 +509,8 @@ def summarize_structured(text: str, target_language: str = None) -> dict:
         target_language = detect_language(text[:1000])
     
     # Check if text needs chunking
-    if len(text) > 30000:
-        chunks = chunk_text(text, chunk_size=4000, overlap=200)
+    if len(text) > 100000:
+        chunks = chunk_text(text, chunk_size=10000, overlap=500)
         print(f"📊 Processing {len(chunks)} chunks for structured summary")
         
         all_bullets = []

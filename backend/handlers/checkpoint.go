@@ -119,10 +119,10 @@ func LoadCheckpoint(job *models.SummarizationJob) (*CheckpointData, error) {
 	}
 
 	if checkpoint.TotalChunks > 0 {
-		log.Printf("📂 Checkpoint loaded: Job %d, Last page %d, Chunk %d/%d", 
+		log.Printf("Checkpoint loaded: Job %d, Last page %d, Chunk %d/%d", 
 			job.ID, checkpoint.LastPage, checkpoint.ProcessedChunks, checkpoint.TotalChunks)
 	} else {
-		log.Printf("📂 Checkpoint loaded: Job %d, Last page %d", job.ID, checkpoint.LastPage)
+		log.Printf("Checkpoint loaded: Job %d, Last page %d", job.ID, checkpoint.LastPage)
 	}
 	return &checkpoint, nil
 }
@@ -136,7 +136,7 @@ func ClearCheckpoint(job *models.SummarizationJob) error {
 		return fmt.Errorf("failed to clear checkpoint: %v", err)
 	}
 
-	log.Printf("🗑️  Checkpoint cleared: Job %d", job.ID)
+	log.Printf("Checkpoint cleared: Job %d", job.ID)
 	return nil
 }
 
@@ -150,7 +150,7 @@ func ProcessJobWithCheckpoint(jobID uint) error {
 	// Load checkpoint
 	checkpoint, err := LoadCheckpoint(&job)
 	if err != nil {
-		log.Printf("⚠️  Failed to load checkpoint: %v, starting fresh", err)
+		log.Printf("Failed to load checkpoint: %v, starting fresh", err)
 		checkpoint = &CheckpointData{
 			ProcessedPages: []int{},
 			PartialResults: make(map[string]interface{}),
@@ -162,10 +162,10 @@ func ProcessJobWithCheckpoint(jobID uint) error {
 	isResume := checkpoint.LastPage > 0
 	if isResume {
 		if checkpoint.TotalChunks > 0 {
-			log.Printf("🔄 Resuming job %d from page %d, chunk %d/%d", 
+			log.Printf("Resuming job %d from page %d, chunk %d/%d", 
 				job.ID, checkpoint.LastPage, checkpoint.ProcessedChunks, checkpoint.TotalChunks)
 		} else {
-			log.Printf("🔄 Resuming job %d from page %d", job.ID, checkpoint.LastPage)
+			log.Printf("Resuming job %d from page %d", job.ID, checkpoint.LastPage)
 		}
 	}
 
@@ -212,7 +212,7 @@ func ProcessJobWithCheckpoint(jobID uint) error {
 		for _, permErr := range permanentErrors {
 			if strings.Contains(strings.ToLower(errMsg), permErr) {
 				isPermanentError = true
-				log.Printf("🚫 Permanent error detected for job %d: %s", job.ID, permErr)
+				log.Printf("Permanent error detected for job %d: %s", job.ID, permErr)
 				break
 			}
 		}
@@ -230,16 +230,16 @@ func ProcessJobWithCheckpoint(jobID uint) error {
 			job.CompletedAt = &completedAt
 			
 			if isPermanentError {
-				log.Printf("❌ Job %d failed permanently: %s", job.ID, errMsg)
+				log.Printf("Job %d failed permanently: %s", job.ID, errMsg)
 			} else {
-				log.Printf("❌ Job %d failed after %d retries. Checkpoint saved at page %d", 
+				log.Printf("Job %d failed after %d retries. Checkpoint saved at page %d", 
 					job.ID, job.MaxRetries, checkpoint.LastPage)
 			}
 		} else {
 			// Reset to pending for retry
 			job.Status = models.JobStatusPending
 			job.StartedAt = nil
-			log.Printf("⏳ Job %d will retry (attempt %d/%d). Will resume from page %d", 
+			log.Printf("Job %d will retry (attempt %d/%d). Will resume from page %d", 
 				job.ID, job.RetryCount+1, job.MaxRetries, checkpoint.LastPage)
 		}
 
@@ -249,7 +249,7 @@ func ProcessJobWithCheckpoint(jobID uint) error {
 
 	// Merge with checkpoint results if resuming
 	if isResume && len(checkpoint.PartialResults) > 0 {
-		log.Printf("🔗 Merging checkpoint results with new results")
+		log.Printf("Merging checkpoint results with new results")
 		for key, value := range checkpoint.PartialResults {
 			if _, exists := result[key]; !exists {
 				result[key] = value
@@ -313,6 +313,6 @@ func ProcessJobWithCheckpoint(jobID uint) error {
 	job.SummaryLogID = &summaryLog.ID
 	database.DB.Save(&job)
 
-	log.Printf("✅ Job %d completed successfully", job.ID)
+	log.Printf("Job %d completed successfully", job.ID)
 	return nil
 }
