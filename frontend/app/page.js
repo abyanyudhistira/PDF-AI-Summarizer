@@ -29,219 +29,29 @@ import {
   faSortAmountDown,
 } from "@fortawesome/free-solid-svg-icons";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
-
-// Utility function for safe date formatting
-const formatDate = (dateString) => {
-  if (!dateString) return "N/A";
-  try {
-    const date = new Date(dateString);
-    if (isNaN(date.getTime())) return "Invalid Date";
-    return date.toLocaleDateString();
-  } catch (error) {
-    return "Invalid Date";
-  }
-};
-
-const formatDateTime = (dateString) => {
-  if (!dateString) return "N/A";
-  try {
-    const date = new Date(dateString);
-    if (isNaN(date.getTime())) return "Invalid Date";
-    return date.toLocaleString();
-  } catch (error) {
-    return "Invalid Date";
-  }
-};
-
-// API Client
-const api = {
-  async getPDFs() {
-    const response = await fetch(`${API_URL}/api/pdfs`);
-    if (!response.ok) throw new Error("Failed to fetch PDFs");
-    return response.json();
-  },
-
-  async uploadPDF(file) {
-    const formData = new FormData();
-    formData.append("file", file);
-    const response = await fetch(`${API_URL}/api/pdfs/upload`, {
-      method: "POST",
-      body: formData,
-    });
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error || "Upload failed");
-    }
-    return response.json();
-  },
-
-  async deletePDF(id) {
-    const response = await fetch(`${API_URL}/api/pdfs/${id}`, {
-      method: "DELETE",
-    });
-    if (!response.ok) throw new Error("Failed to delete PDF");
-    return response.json();
-  },
-
-  async getSummaries(pdfId) {
-    const response = await fetch(`${API_URL}/api/pdfs/${pdfId}/summaries`);
-    if (!response.ok) throw new Error("Failed to fetch summaries");
-    return response.json();
-  },
-
-  async deleteSummary(summaryId) {
-    const response = await fetch(`${API_URL}/api/summaries/${summaryId}`, {
-      method: "DELETE",
-    });
-    if (!response.ok) throw new Error("Failed to delete summary");
-    return response.json();
-  },
-
-  async summarizePDF(pdfId, options) {
-    // Use async endpoint (with RabbitMQ queue) - now default
-    const response = await fetch(`${API_URL}/api/pdfs/${pdfId}/summarize`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(options),
-    });
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error || "Failed to create summarization job");
-    }
-    return response.json();
-  },
-
-  async getJobStatus(jobId) {
-    const response = await fetch(`${API_URL}/api/jobs/${jobId}`);
-    if (!response.ok) throw new Error("Failed to fetch job status");
-    return response.json();
-  },
-
-  async getCheckpoint(jobId) {
-    const response = await fetch(
-      `${API_URL}/api/test/jobs/${jobId}/checkpoint`
-    );
-    if (!response.ok) throw new Error("Failed to fetch checkpoint");
-    return response.json();
-  },
-
-  async getPDFCheckpoint(pdfId) {
-    const response = await fetch(
-      `${API_URL}/api/test/pdfs/${pdfId}/checkpoint`
-    );
-    if (!response.ok) throw new Error("Failed to fetch PDF checkpoint");
-    return response.json();
-  },
-
-  async getSummary(summaryId) {
-    const response = await fetch(`${API_URL}/api/summaries/${summaryId}`);
-    if (!response.ok) throw new Error("Failed to fetch summary");
-    return response.json();
-  },
-
-  // ===== NEW APIs - Job Management =====
-  async listJobs(filters = {}) {
-    const params = new URLSearchParams(filters);
-    const response = await fetch(`${API_URL}/api/jobs?${params}`);
-    if (!response.ok) throw new Error("Failed to fetch jobs");
-    return response.json();
-  },
-
-  async retryJob(jobId) {
-    const response = await fetch(`${API_URL}/api/jobs/${jobId}/retry`, {
-      method: "POST",
-    });
-    if (!response.ok) throw new Error("Failed to retry job");
-    return response.json();
-  },
-
-  async deleteJob(jobId) {
-    const response = await fetch(`${API_URL}/api/jobs/${jobId}`, {
-      method: "DELETE",
-    });
-    if (!response.ok) throw new Error("Failed to delete job");
-    return response.json();
-  },
-
-  // ===== NEW APIs - Statistics =====
-  async getPDFStats() {
-    const response = await fetch(`${API_URL}/api/pdfs/stats/count`);
-    if (!response.ok) throw new Error("Failed to fetch PDF stats");
-    return response.json();
-  },
-
-  async getAuditStats() {
-    const response = await fetch(`${API_URL}/api/audit/stats`);
-    if (!response.ok) throw new Error("Failed to fetch audit stats");
-    return response.json();
-  },
-
-  // ===== NEW APIs - PDF Detail =====
-  async getPDFDetail(id) {
-    const response = await fetch(`${API_URL}/api/pdfs/${id}`);
-    if (!response.ok) throw new Error("Failed to fetch PDF detail");
-    return response.json();
-  },
-
-  // ===== NEW APIs - All Summaries =====
-  async getAllSummaries(page = 1, limit = 50) {
-    const response = await fetch(
-      `${API_URL}/api/summaries?page=${page}&limit=${limit}`
-    );
-    if (!response.ok) throw new Error("Failed to fetch all summaries");
-    return response.json();
-  },
-
-  // ===== NEW APIs - Audit Logs =====
-  async getAuditLogs(filters = {}) {
-    const params = new URLSearchParams(filters);
-    const response = await fetch(`${API_URL}/api/audit/logs?${params}`);
-    if (!response.ok) throw new Error("Failed to fetch audit logs");
-    return response.json();
-  },
-
-  async cleanupAuditLogs(days = 30) {
-    const response = await fetch(
-      `${API_URL}/api/audit/logs/cleanup?days=${days}`,
-      {
-        method: "DELETE",
-      }
-    );
-    if (!response.ok) throw new Error("Failed to cleanup audit logs");
-    return response.json();
-  },
-};
-
-// Markdown Components
-const MarkdownComponents = {
-  ul: ({ node, ...props }) => (
-    <ul
-      className="list-disc list-inside space-y-1 ml-4 text-gray-200"
-      {...props}
-    />
-  ),
-  ol: ({ node, ...props }) => (
-    <ol
-      className="list-decimal list-inside space-y-1 ml-4 text-gray-200"
-      {...props}
-    />
-  ),
-  li: ({ node, ...props }) => <li className="mb-1 text-gray-200" {...props} />,
-  h1: ({ node, ...props }) => (
-    <h1 className="text-xl font-bold mt-4 mb-2 text-white" {...props} />
-  ),
-  h2: ({ node, ...props }) => (
-    <h2 className="text-lg font-bold mt-3 mb-2 text-white" {...props} />
-  ),
-  h3: ({ node, ...props }) => (
-    <h3 className="text-md font-bold mt-2 mb-1 text-white" {...props} />
-  ),
-  strong: ({ node, ...props }) => (
-    <strong className="font-semibold text-white" {...props} />
-  ),
-  p: ({ node, ...props }) => <p className="mb-2 text-gray-200" {...props} />,
-};
+// Import refactored modules
+import api from "../lib/api";
+import {
+  formatDate,
+  formatDateTime,
+  copyText as copyTextUtil,
+  downloadText as downloadTextUtil,
+  exportToJSON as exportToJSONUtil,
+  exportToCSV as exportToCSVUtil,
+} from "../lib/utils";
+import {
+  filterAndSortPDFs,
+  filterAndSortSummaries,
+  paginate,
+} from "../lib/filters";
+import {
+  ITEMS_PER_PAGE,
+  POLL_INTERVAL,
+  JOB_TIMEOUT,
+  MAX_FILE_SIZE,
+  ALLOWED_FILE_TYPE,
+} from "../lib/constants";
+import MarkdownComponents from "../components/MarkdownComponents";
 
 export default function Home() {
   const [view, setView] = useState("library"); // library, upload, config, result, history, jobs, stats
@@ -271,7 +81,6 @@ export default function Home() {
   // Pagination states
   const [currentPage, setCurrentPage] = useState(1);
   const [summaryPage, setSummaryPage] = useState(1);
-  const itemsPerPage = 5; // Changed from 10 to 5
 
   // Summary sort & filter states
   const [summarySortBy, setSummarySortBy] = useState("latest"); // latest, oldest, mode, processing-time
@@ -293,6 +102,15 @@ export default function Home() {
   const [processingStatus, setProcessingStatus] = useState("");
   const [currentJobId, setCurrentJobId] = useState(null);
 
+  // Wrapper functions for utils that need addNotification
+  const copyText = (text) => copyTextUtil(text, addNotification);
+  const downloadText = (text, filename) =>
+    downloadTextUtil(text, filename, addNotification);
+  const exportToJSON = (summaryData, filename) =>
+    exportToJSONUtil(summaryData, selectedPDF, filename, addNotification);
+  const exportToCSV = (summaryData, filename) =>
+    exportToCSVUtil(summaryData, selectedPDF, filename, addNotification);
+
   useEffect(() => {
     loadPDFs();
     loadStats();
@@ -306,7 +124,12 @@ export default function Home() {
   // Reset summary pagination when filters change
   useEffect(() => {
     setSummaryPage(1);
-  }, [summarySortBy, summaryFilterMode, summaryFilterDate, summaryFilterLanguage]);
+  }, [
+    summarySortBy,
+    summaryFilterMode,
+    summaryFilterDate,
+    summaryFilterLanguage,
+  ]);
 
   // Click outside handler to close dropdowns
   useEffect(() => {
@@ -314,10 +137,14 @@ export default function Home() {
       // Check if click is outside notification or filter dropdowns
       const notifDropdown = document.getElementById("notification-dropdown");
       const filterDropdown = document.getElementById("filter-dropdown");
-      const summaryFilterDropdown = document.getElementById("summary-filter-dropdown");
+      const summaryFilterDropdown = document.getElementById(
+        "summary-filter-dropdown"
+      );
       const notifButton = document.getElementById("notification-button");
       const filterButton = document.getElementById("filter-button");
-      const summaryFilterButton = document.getElementById("summary-filter-button");
+      const summaryFilterButton = document.getElementById(
+        "summary-filter-button"
+      );
 
       if (
         showNotifications &&
@@ -390,118 +217,36 @@ export default function Home() {
     setHasUnreadNotifications(true); // Mark as unread
   };
 
-  // Filter, Sort PDFs by search query, type, and date
-  const filteredPDFs = pdfList
-    .filter((pdf) => {
-      // Search filter
-      const matchesSearch = pdf.original_filename
-        .toLowerCase()
-        .includes(searchQuery.toLowerCase());
+  // Filter and sort PDFs using imported function
+  const filteredPDFs = filterAndSortPDFs(
+    pdfList,
+    searchQuery,
+    sortBy,
+    filterType,
+    filterDate
+  );
 
-      // Type filter
-      let matchesType = true;
-      if (filterType === "with-summary") {
-        matchesType = pdf.summary_count > 0;
-      } else if (filterType === "no-summary") {
-        matchesType = pdf.summary_count === 0;
-      }
+  // Pagination for PDF list using imported function
+  const { items: paginatedPDFs, totalPages } = paginate(
+    filteredPDFs,
+    currentPage,
+    ITEMS_PER_PAGE
+  );
 
-      // Date filter
-      let matchesDate = true;
-      if (filterDate !== "all" && pdf.uploaded_at) {
-        const uploadDate = new Date(pdf.uploaded_at);
-        const now = new Date();
-        const diffTime = now - uploadDate;
-        const diffDays = diffTime / (1000 * 60 * 60 * 24);
+  // Filter and sort summaries using imported function
+  const filteredSummaries = filterAndSortSummaries(
+    summaryHistory,
+    summarySortBy,
+    summaryFilterMode,
+    summaryFilterLanguage,
+    summaryFilterDate
+  );
 
-        if (filterDate === "today") {
-          matchesDate = diffDays < 1;
-        } else if (filterDate === "week") {
-          matchesDate = diffDays < 7;
-        } else if (filterDate === "month") {
-          matchesDate = diffDays < 30;
-        }
-      }
-
-      return matchesSearch && matchesType && matchesDate;
-    })
-    .sort((a, b) => {
-      // Sort logic
-      if (sortBy === "latest") {
-        return new Date(b.uploaded_at) - new Date(a.uploaded_at);
-      } else if (sortBy === "oldest") {
-        return new Date(a.uploaded_at) - new Date(b.uploaded_at);
-      } else if (sortBy === "name-asc") {
-        return a.original_filename.localeCompare(b.original_filename);
-      } else if (sortBy === "name-desc") {
-        return b.original_filename.localeCompare(a.original_filename);
-      } else if (sortBy === "size") {
-        return b.file_size - a.file_size;
-      }
-      return 0;
-    });
-
-  // Pagination for PDF list
-  const totalPages = Math.ceil(filteredPDFs.length / itemsPerPage);
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const endIndex = startIndex + itemsPerPage;
-  const paginatedPDFs = filteredPDFs.slice(startIndex, endIndex);
-
-  // Filter and Sort Summary History
-  const filteredSummaries = summaryHistory
-    .filter((summary) => {
-      // Filter by mode
-      let matchesMode = true;
-      if (summaryFilterMode !== "all") {
-        matchesMode = summary.mode === summaryFilterMode;
-      }
-
-      // Filter by language
-      let matchesLanguage = true;
-      if (summaryFilterLanguage !== "all") {
-        matchesLanguage = summary.language === summaryFilterLanguage;
-      }
-
-      // Filter by date
-      let matchesDate = true;
-      if (summaryFilterDate !== "all" && summary.created_at) {
-        const createdDate = new Date(summary.created_at);
-        const now = new Date();
-        const diffTime = now - createdDate;
-        const diffDays = diffTime / (1000 * 60 * 60 * 24);
-
-        if (summaryFilterDate === "today") {
-          matchesDate = diffDays < 1;
-        } else if (summaryFilterDate === "week") {
-          matchesDate = diffDays < 7;
-        } else if (summaryFilterDate === "month") {
-          matchesDate = diffDays < 30;
-        }
-      }
-
-      return matchesMode && matchesLanguage && matchesDate;
-    })
-    .sort((a, b) => {
-      // Sort logic
-      if (summarySortBy === "latest") {
-        return new Date(b.created_at) - new Date(a.created_at);
-      } else if (summarySortBy === "oldest") {
-        return new Date(a.created_at) - new Date(b.created_at);
-      } else if (summarySortBy === "mode") {
-        return a.mode.localeCompare(b.mode);
-      } else if (summarySortBy === "processing-time") {
-        return (b.processing_time || 0) - (a.processing_time || 0);
-      }
-      return 0;
-    });
-
-  // Pagination for summary history
-  const totalSummaryPages = Math.ceil(filteredSummaries.length / itemsPerPage);
-  const summaryStartIndex = (summaryPage - 1) * itemsPerPage;
-  const summaryEndIndex = summaryStartIndex + itemsPerPage;
-  const paginatedSummaries = filteredSummaries.slice(
-    summaryStartIndex,
-    summaryEndIndex
+  // Pagination for summary history using imported function
+  const { items: paginatedSummaries, totalPages: totalSummaryPages } = paginate(
+    filteredSummaries,
+    summaryPage,
+    ITEMS_PER_PAGE
   );
 
   const handleFileChange = (e) => {
@@ -512,7 +257,7 @@ export default function Home() {
         addNotification("Only PDF files are allowed", "error");
         return;
       }
-      if (selectedFile.size > 10 * 1024 * 1024) {
+      if (selectedFile.size > MAX_FILE_SIZE) {
         setError("File size must be less than 10MB");
         addNotification("File size must be less than 10MB", "error");
         return;
@@ -535,7 +280,10 @@ export default function Home() {
       setView("library");
     } catch (err) {
       setError(err.message);
-      addNotification(`Failed to upload "${file.name}": ${err.message}`, "error");
+      addNotification(
+        `Failed to upload "${file.name}": ${err.message}`,
+        "error"
+      );
     } finally {
       setLoading(false);
     }
@@ -578,7 +326,7 @@ export default function Home() {
     if (!confirm("Delete this PDF?")) return;
     const pdfToDelete = pdfList.find((p) => p.id === id);
     const filename = pdfToDelete?.original_filename || "PDF";
-    
+
     try {
       await api.deletePDF(id);
       addNotification(`"${filename}" deleted successfully`, "success");
@@ -589,7 +337,10 @@ export default function Home() {
       }
     } catch (err) {
       setError(err.message);
-      addNotification(`Failed to delete "${filename}": ${err.message}`, "error");
+      addNotification(
+        `Failed to delete "${filename}": ${err.message}`,
+        "error"
+      );
     }
   };
 
@@ -688,14 +439,14 @@ export default function Home() {
                   return currentView; // Keep current view
                 }
               });
-              
+
               setLoading(false);
               setProcessingStatus("");
             }
           } else if (job.status === "failed") {
             clearInterval(pollInterval);
             setError(job.error_msg || "Summarization failed");
-            
+
             // Try to fetch checkpoint info
             let hasCheckpoint = false;
             try {
@@ -712,7 +463,7 @@ export default function Home() {
             } catch (checkpointErr) {
               console.error("Failed to fetch checkpoint info:", checkpointErr);
             }
-            
+
             // Add notification with resume action if checkpoint exists
             if (hasCheckpoint) {
               addNotification(
@@ -722,11 +473,13 @@ export default function Home() {
               );
             } else {
               addNotification(
-                `Summary failed for "${selectedPDF.original_filename}": ${job.error_msg || "Unknown error"}`,
+                `Summary failed for "${selectedPDF.original_filename}": ${
+                  job.error_msg || "Unknown error"
+                }`,
                 "error"
               );
             }
-            
+
             setLoading(false);
             setProcessingStatus("");
           } else if (job.status === "processing") {
@@ -737,7 +490,7 @@ export default function Home() {
         } catch (err) {
           console.error("Failed to poll job status:", err);
         }
-      }, 2000); // Poll every 2 seconds
+      }, POLL_INTERVAL);
 
       // Timeout after 15 minutes
       setTimeout(() => {
@@ -754,7 +507,7 @@ export default function Home() {
           setProcessingStatus("");
           return currentView;
         });
-      }, 15 * 60 * 1000);
+      }, JOB_TIMEOUT);
     } catch (err) {
       setError(err.message);
       addNotification(
@@ -773,129 +526,6 @@ export default function Home() {
       } catch (checkpointErr) {
         console.error("Failed to fetch checkpoint info:", checkpointErr);
       }
-    }
-  };
-
-  const copyText = async (text) => {
-    try {
-      await navigator.clipboard.writeText(text);
-      addNotification("Text copied to clipboard!", "success");
-    } catch (err) {
-      console.error("Failed to copy:", err);
-      addNotification("Failed to copy text", "error");
-    }
-  };
-
-  const downloadText = (text, filename) => {
-    const blob = new Blob([text], { type: "text/plain" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
-    addNotification(`Downloaded as ${filename}`, "success");
-  };
-
-  const exportToJSON = (summaryData, filename) => {
-    try {
-      // Create a clean JSON object with all summary data
-      const exportData = {
-        pdf_filename: selectedPDF?.original_filename || "Unknown",
-        summary_mode: summaryData.mode,
-        language: summaryData.language,
-        created_at: summaryData.created_at,
-        processing_time: summaryData.processing_time,
-        pages_processed: summaryData.pages_processed,
-        summary: {}
-      };
-
-      // Add mode-specific data
-      if (summaryData.mode === "simple") {
-        exportData.summary.text = summaryData.summary_text;
-      } else if (summaryData.mode === "structured") {
-        exportData.summary.executive_summary = summaryData.executive_summary;
-        exportData.summary.key_points = summaryData.bullets ? JSON.parse(summaryData.bullets) : [];
-        exportData.summary.highlights = summaryData.highlights ? JSON.parse(summaryData.highlights) : [];
-      } else if (summaryData.mode === "qa") {
-        exportData.summary.question = summaryData.qa_question;
-        exportData.summary.answer = summaryData.qa_answer;
-      }
-
-      const jsonString = JSON.stringify(exportData, null, 2);
-      const blob = new Blob([jsonString], { type: "application/json" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
-      addNotification(`Exported as ${filename}`, "success");
-    } catch (err) {
-      console.error("Failed to export JSON:", err);
-      addNotification("Failed to export JSON", "error");
-    }
-  };
-
-  const exportToCSV = (summaryData, filename) => {
-    try {
-      let csvContent = "";
-      
-      // CSV Header
-      csvContent += "Field,Value\n";
-      
-      // Basic info
-      csvContent += `"PDF Filename","${(selectedPDF?.original_filename || "Unknown").replace(/"/g, '""')}"\n`;
-      csvContent += `"Summary Mode","${summaryData.mode}"\n`;
-      csvContent += `"Language","${summaryData.language}"\n`;
-      csvContent += `"Created At","${summaryData.created_at}"\n`;
-      csvContent += `"Processing Time","${summaryData.processing_time}s"\n`;
-      csvContent += `"Pages Processed","${summaryData.pages_processed || 'N/A'}"\n`;
-      csvContent += "\n";
-
-      // Mode-specific content
-      if (summaryData.mode === "simple") {
-        csvContent += `"Summary Text","${(summaryData.summary_text || "").replace(/"/g, '""').replace(/\n/g, ' ')}"\n`;
-      } else if (summaryData.mode === "structured") {
-        csvContent += `"Executive Summary","${(summaryData.executive_summary || "").replace(/"/g, '""').replace(/\n/g, ' ')}"\n`;
-        csvContent += "\n";
-        
-        // Key Points
-        const bullets = summaryData.bullets ? JSON.parse(summaryData.bullets) : [];
-        csvContent += "Key Points\n";
-        bullets.forEach((bullet, i) => {
-          csvContent += `"${i + 1}","${bullet.replace(/"/g, '""')}"\n`;
-        });
-        csvContent += "\n";
-        
-        // Highlights
-        const highlights = summaryData.highlights ? JSON.parse(summaryData.highlights) : [];
-        csvContent += "Highlights\n";
-        highlights.forEach((highlight, i) => {
-          csvContent += `"${i + 1}","${highlight.replace(/"/g, '""')}"\n`;
-        });
-      } else if (summaryData.mode === "qa") {
-        csvContent += `"Question","${(summaryData.qa_question || "").replace(/"/g, '""')}"\n`;
-        csvContent += `"Answer","${(summaryData.qa_answer || "").replace(/"/g, '""').replace(/\n/g, ' ')}"\n`;
-      }
-
-      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
-      addNotification(`Exported as ${filename}`, "success");
-    } catch (err) {
-      console.error("Failed to export CSV:", err);
-      addNotification("Failed to export CSV", "error");
     }
   };
 
@@ -980,22 +610,22 @@ export default function Home() {
                   </h4>
                   <p className="text-gray-400 text-xs">
                     Tanyakan pertanyaan tentang isi PDF.
-                </p>
+                  </p>
+                </div>
               </div>
             </div>
-          </div>
 
-          <div className="mt-auto pt-6 border-t border-gray-700">
-            <div className="text-gray-400 text-sm">
-              <p className="mb-2">Tech Stack:</p>
-              <ul className="text-xs space-y-1">
-                <li>• Golang (Fiber)</li>
-                <li>• Python (FastAPI)</li>
-                <li>• Google Gemini AI</li>
-                <li>• PostgreSQL</li>
-              </ul>
+            <div className="mt-auto pt-6 border-t border-gray-700">
+              <div className="text-gray-400 text-sm">
+                <p className="mb-2">Tech Stack:</p>
+                <ul className="text-xs space-y-1">
+                  <li>• Golang (Fiber)</li>
+                  <li>• Python (FastAPI)</li>
+                  <li>• Google Gemini AI</li>
+                  <li>• PostgreSQL</li>
+                </ul>
+              </div>
             </div>
-          </div>
           </div>
         </div>
 
@@ -1074,277 +704,291 @@ export default function Home() {
                   </h2>
                 </div>
 
-                            <header className="border-gray-700 bg-gray-900 mb-6">
-              {/* Search Bar Row */}
-              <div className="flex items-center justify-center py-3">
-                {/* Search Bar */}
-                <div className="flex-1 max-w-3xl">
-                  <div className="relative">
-                    <FontAwesomeIcon
-                      icon={faSearch}
-                      className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400"
-                    />
-                    <input
-                      type="text"
-                      placeholder="Search for anything..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      className="w-full bg-gray-700 text-white pl-12 pr-4 py-2.5 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 placeholder-gray-400"
-                    />
-                  </div>
-                </div>
-
-                {/* Right Side - Filter & Notifications */}
-                <div className="flex items-center gap-4 ml-6">
-                  {/* Filter Button */}
-                  <div className="relative">
-                    <button
-                      id="filter-button"
-                      onClick={() => {
-                        setShowFilters(!showFilters);
-                        setShowNotifications(false); // Close notifications when opening filters
-                      }}
-                      className="relative p-2 text-gray-300 hover:text-white hover:bg-gray-700 rounded-lg transition"
-                      title="Sort & Filter"
-                    >
-                      <FontAwesomeIcon icon={faFilter} className="text-xl" />
-                      {(sortBy !== "latest" ||
-                        filterType !== "all" ||
-                        filterDate !== "all") && (
-                        <span className="absolute top-1 right-1 w-2 h-2 bg-blue-500 rounded-full"></span>
-                      )}
-                    </button>
-
-                    {/* Filter Dropdown */}
-                    {showFilters && (
-                    <div
-                      id="filter-dropdown"
-                      className="absolute right-0 mt-2 w-80 bg-gray-800 rounded-lg shadow-xl border border-gray-700 overflow-hidden z-50"
-                    >
-                      <div className="p-4 border-b border-gray-700">
-                        <div className="flex items-center justify-between">
-                          <h3 className="text-white font-semibold">
-                            Sort & Filter
-                          </h3>
-                          <button
-                            onClick={() => setShowFilters(false)}
-                            className="text-gray-400 hover:text-white"
-                          >
-                            <FontAwesomeIcon icon={faTimes} />
-                          </button>
-                        </div>
-                      </div>
-
-                      <div className="p-4 space-y-4">
-                        {/* Sort Section */}
-                        <div>
-                          <label className="block text-gray-400 text-sm font-medium mb-2">
-                            <FontAwesomeIcon
-                              icon={faSortAmountDown}
-                              className="mr-2"
-                            />
-                            Sort By
-                          </label>
-                          <select
-                            value={sortBy}
-                            onChange={(e) => setSortBy(e.target.value)}
-                            className="w-full bg-gray-700 text-white px-3 py-2 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500 cursor-pointer"
-                          >
-                            <option value="latest">Latest First</option>
-                            <option value="oldest">Oldest First</option>
-                            <option value="name-asc">Name (A-Z)</option>
-                            <option value="name-desc">Name (Z-A)</option>
-                            <option value="size">File Size</option>
-                          </select>
-                        </div>
-
-                        {/* Filter by Type */}
-                        <div>
-                          <label className="block text-gray-400 text-sm font-medium mb-2">
-                            <FontAwesomeIcon icon={faFilter} className="mr-2" />
-                            Filter by Type
-                          </label>
-                          <select
-                            value={filterType}
-                            onChange={(e) => setFilterType(e.target.value)}
-                            className="w-full bg-gray-700 text-white px-3 py-2 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500 cursor-pointer"
-                          >
-                            <option value="all">All Files</option>
-                            <option value="with-summary">With Summary</option>
-                            <option value="no-summary">No Summary</option>
-                          </select>
-                        </div>
-
-                        {/* Filter by Date */}
-                        <div>
-                          <label className="block text-gray-400 text-sm font-medium mb-2">
-                            <FontAwesomeIcon
-                              icon={faCalendar}
-                              className="mr-2"
-                            />
-                            Filter by Date
-                          </label>
-                          <select
-                            value={filterDate}
-                            onChange={(e) => setFilterDate(e.target.value)}
-                            className="w-full bg-gray-700 text-white px-3 py-2 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500 cursor-pointer"
-                          >
-                            <option value="all">All Time</option>
-                            <option value="today">Today</option>
-                            <option value="week">This Week</option>
-                            <option value="month">This Month</option>
-                          </select>
-                        </div>
-
-                        {/* Results Count */}
-                        <div className="pt-3 border-t border-gray-700">
-                          <p className="text-gray-400 text-sm text-center">
-                            Showing {filteredPDFs.length}{" "}
-                            {filteredPDFs.length === 1 ? "file" : "files"}
-                          </p>
-                        </div>
-
-                        {/* Reset Button */}
-                        {(sortBy !== "latest" ||
-                          filterType !== "all" ||
-                          filterDate !== "all") && (
-                          <button
-                            onClick={() => {
-                              setSortBy("latest");
-                              setFilterType("all");
-                              setFilterDate("all");
-                            }}
-                            className="w-full bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded-lg text-sm transition"
-                          >
-                            Reset Filters
-                          </button>
-                        )}
+                <header className="border-gray-700 bg-gray-900 mb-6">
+                  {/* Search Bar Row */}
+                  <div className="flex items-center justify-center py-3">
+                    {/* Search Bar */}
+                    <div className="flex-1 max-w-3xl">
+                      <div className="relative">
+                        <FontAwesomeIcon
+                          icon={faSearch}
+                          className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400"
+                        />
+                        <input
+                          type="text"
+                          placeholder="Search for anything..."
+                          value={searchQuery}
+                          onChange={(e) => setSearchQuery(e.target.value)}
+                          className="w-full bg-gray-700 text-white pl-12 pr-4 py-2.5 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 placeholder-gray-400"
+                        />
                       </div>
                     </div>
-                  )}
-                </div>
 
-                {/* Notification Bell */}
-                <div className="relative">
-                  <button
-                    id="notification-button"
-                    onClick={() => {
-                      const newState = !showNotifications;
-                      setShowNotifications(newState);
-                      setShowFilters(false); // Close filters when opening notifications
-                      if (newState) {
-                        // Mark as read when opening
-                        setHasUnreadNotifications(false);
-                      }
-                    }}
-                    className="relative p-2 text-gray-300 hover:text-white hover:bg-gray-700 rounded-lg transition"
-                  >
-                    <FontAwesomeIcon icon={faBell} className="text-xl" />
-                    {hasUnreadNotifications && notifications.length > 0 && (
-                      <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
-                    )}
-                  </button>
+                    {/* Right Side - Filter & Notifications */}
+                    <div className="flex items-center gap-4 ml-6">
+                      {/* Filter Button */}
+                      <div className="relative">
+                        <button
+                          id="filter-button"
+                          onClick={() => {
+                            setShowFilters(!showFilters);
+                            setShowNotifications(false); // Close notifications when opening filters
+                          }}
+                          className="relative p-2 text-gray-300 hover:text-white hover:bg-gray-700 rounded-lg transition"
+                          title="Sort & Filter"
+                        >
+                          <FontAwesomeIcon
+                            icon={faFilter}
+                            className="text-xl"
+                          />
+                          {(sortBy !== "latest" ||
+                            filterType !== "all" ||
+                            filterDate !== "all") && (
+                            <span className="absolute top-1 right-1 w-2 h-2 bg-blue-500 rounded-full"></span>
+                          )}
+                        </button>
 
-                  {/* Notification Dropdown */}
-                  {showNotifications && (
-                    <div
-                      id="notification-dropdown"
-                      className="absolute right-0 mt-2 w-80 bg-gray-800 rounded-lg shadow-xl border border-gray-700 overflow-hidden z-50"
-                    >
-                      <div className="p-4 border-b border-gray-700">
-                        <div className="flex items-center justify-between">
-                          <h3 className="text-white font-semibold">
-                            Notifications
-                          </h3>
-                          <button
-                            onClick={() => setShowNotifications(false)}
-                            className="text-gray-400 hover:text-white"
+                        {/* Filter Dropdown */}
+                        {showFilters && (
+                          <div
+                            id="filter-dropdown"
+                            className="absolute right-0 mt-2 w-80 bg-gray-800 rounded-lg shadow-xl border border-gray-700 overflow-hidden z-50"
                           >
-                            <FontAwesomeIcon icon={faTimes} />
-                          </button>
-                        </div>
-                      </div>
-                      <div className="max-h-96 overflow-y-auto">
-                        {notifications.length === 0 ? (
-                          <div className="p-8 text-center text-gray-400">
-                            <FontAwesomeIcon
-                              icon={faBell}
-                              className="text-4xl mb-2 opacity-50"
-                            />
-                            <p>No notifications</p>
-                          </div>
-                        ) : (
-                          notifications.map((notif, index) => (
-                            <div
-                              key={index}
-                              className="p-4 border-b border-gray-700 hover:bg-gray-700 transition"
-                            >
-                              <div className="flex items-start gap-3">
-                                <FontAwesomeIcon
-                                  icon={
-                                    notif.type === "success"
-                                      ? faCheckCircle
-                                      : notif.type === "error"
-                                      ? faExclamationCircle
-                                      : faInfoCircle
-                                  }
-                                  className={`mt-1 ${
-                                    notif.type === "success"
-                                      ? "text-green-400"
-                                      : notif.type === "error"
-                                      ? "text-red-400"
-                                      : "text-blue-400"
-                                  }`}
-                                />
-                                <div className="flex-1">
-                                  <p className="text-white text-sm">
-                                    {notif.message}
-                                  </p>
-                                  <p className="text-gray-400 text-xs mt-1">
-                                    {notif.time}
-                                  </p>
-                                  
-                                  {/* Action Buttons */}
-                                  {notif.action && (
-                                    <div className="mt-2 flex gap-2">
-                                      {notif.action === "view-result" && (
-                                        <button
-                                          onClick={() => {
-                                            setView("result");
-                                            setShowNotifications(false);
-                                          }}
-                                          className="bg-blue-600 hover:bg-blue-700 text-white text-xs px-3 py-1.5 rounded transition"
-                                        >
-                                          View Result
-                                        </button>
-                                      )}
-                                      {notif.action === "resume-job" && (
-                                        <button
-                                          onClick={() => {
-                                            setView("config");
-                                            setShowNotifications(false);
-                                          }}
-                                          className="bg-yellow-600 hover:bg-yellow-700 text-white text-xs px-3 py-1.5 rounded transition flex items-center gap-1"
-                                        >
-                                          <FontAwesomeIcon icon={faSync} />
-                                          Resume
-                                        </button>
-                                      )}
-                                    </div>
-                                  )}
-                                </div>
+                            <div className="p-4 border-b border-gray-700">
+                              <div className="flex items-center justify-between">
+                                <h3 className="text-white font-semibold">
+                                  Sort & Filter
+                                </h3>
+                                <button
+                                  onClick={() => setShowFilters(false)}
+                                  className="text-gray-400 hover:text-white"
+                                >
+                                  <FontAwesomeIcon icon={faTimes} />
+                                </button>
                               </div>
                             </div>
-                          ))
+
+                            <div className="p-4 space-y-4">
+                              {/* Sort Section */}
+                              <div>
+                                <label className="block text-gray-400 text-sm font-medium mb-2">
+                                  <FontAwesomeIcon
+                                    icon={faSortAmountDown}
+                                    className="mr-2"
+                                  />
+                                  Sort By
+                                </label>
+                                <select
+                                  value={sortBy}
+                                  onChange={(e) => setSortBy(e.target.value)}
+                                  className="w-full bg-gray-700 text-white px-3 py-2 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500 cursor-pointer"
+                                >
+                                  <option value="latest">Latest First</option>
+                                  <option value="oldest">Oldest First</option>
+                                  <option value="name-asc">Name (A-Z)</option>
+                                  <option value="name-desc">Name (Z-A)</option>
+                                  <option value="size">File Size</option>
+                                </select>
+                              </div>
+
+                              {/* Filter by Type */}
+                              <div>
+                                <label className="block text-gray-400 text-sm font-medium mb-2">
+                                  <FontAwesomeIcon
+                                    icon={faFilter}
+                                    className="mr-2"
+                                  />
+                                  Filter by Type
+                                </label>
+                                <select
+                                  value={filterType}
+                                  onChange={(e) =>
+                                    setFilterType(e.target.value)
+                                  }
+                                  className="w-full bg-gray-700 text-white px-3 py-2 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500 cursor-pointer"
+                                >
+                                  <option value="all">All Files</option>
+                                  <option value="with-summary">
+                                    With Summary
+                                  </option>
+                                  <option value="no-summary">No Summary</option>
+                                </select>
+                              </div>
+
+                              {/* Filter by Date */}
+                              <div>
+                                <label className="block text-gray-400 text-sm font-medium mb-2">
+                                  <FontAwesomeIcon
+                                    icon={faCalendar}
+                                    className="mr-2"
+                                  />
+                                  Filter by Date
+                                </label>
+                                <select
+                                  value={filterDate}
+                                  onChange={(e) =>
+                                    setFilterDate(e.target.value)
+                                  }
+                                  className="w-full bg-gray-700 text-white px-3 py-2 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500 cursor-pointer"
+                                >
+                                  <option value="all">All Time</option>
+                                  <option value="today">Today</option>
+                                  <option value="week">This Week</option>
+                                  <option value="month">This Month</option>
+                                </select>
+                              </div>
+
+                              {/* Results Count */}
+                              <div className="pt-3 border-t border-gray-700">
+                                <p className="text-gray-400 text-sm text-center">
+                                  Showing {filteredPDFs.length}{" "}
+                                  {filteredPDFs.length === 1 ? "file" : "files"}
+                                </p>
+                              </div>
+
+                              {/* Reset Button */}
+                              {(sortBy !== "latest" ||
+                                filterType !== "all" ||
+                                filterDate !== "all") && (
+                                <button
+                                  onClick={() => {
+                                    setSortBy("latest");
+                                    setFilterType("all");
+                                    setFilterDate("all");
+                                  }}
+                                  className="w-full bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded-lg text-sm transition"
+                                >
+                                  Reset Filters
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Notification Bell */}
+                      <div className="relative">
+                        <button
+                          id="notification-button"
+                          onClick={() => {
+                            const newState = !showNotifications;
+                            setShowNotifications(newState);
+                            setShowFilters(false); // Close filters when opening notifications
+                            if (newState) {
+                              // Mark as read when opening
+                              setHasUnreadNotifications(false);
+                            }
+                          }}
+                          className="relative p-2 text-gray-300 hover:text-white hover:bg-gray-700 rounded-lg transition"
+                        >
+                          <FontAwesomeIcon icon={faBell} className="text-xl" />
+                          {hasUnreadNotifications &&
+                            notifications.length > 0 && (
+                              <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
+                            )}
+                        </button>
+
+                        {/* Notification Dropdown */}
+                        {showNotifications && (
+                          <div
+                            id="notification-dropdown"
+                            className="absolute right-0 mt-2 w-80 bg-gray-800 rounded-lg shadow-xl border border-gray-700 overflow-hidden z-50"
+                          >
+                            <div className="p-4 border-b border-gray-700">
+                              <div className="flex items-center justify-between">
+                                <h3 className="text-white font-semibold">
+                                  Notifications
+                                </h3>
+                                <button
+                                  onClick={() => setShowNotifications(false)}
+                                  className="text-gray-400 hover:text-white"
+                                >
+                                  <FontAwesomeIcon icon={faTimes} />
+                                </button>
+                              </div>
+                            </div>
+                            <div className="max-h-96 overflow-y-auto">
+                              {notifications.length === 0 ? (
+                                <div className="p-8 text-center text-gray-400">
+                                  <FontAwesomeIcon
+                                    icon={faBell}
+                                    className="text-4xl mb-2 opacity-50"
+                                  />
+                                  <p>No notifications</p>
+                                </div>
+                              ) : (
+                                notifications.map((notif, index) => (
+                                  <div
+                                    key={index}
+                                    className="p-4 border-b border-gray-700 hover:bg-gray-700 transition"
+                                  >
+                                    <div className="flex items-start gap-3">
+                                      <FontAwesomeIcon
+                                        icon={
+                                          notif.type === "success"
+                                            ? faCheckCircle
+                                            : notif.type === "error"
+                                            ? faExclamationCircle
+                                            : faInfoCircle
+                                        }
+                                        className={`mt-1 ${
+                                          notif.type === "success"
+                                            ? "text-green-400"
+                                            : notif.type === "error"
+                                            ? "text-red-400"
+                                            : "text-blue-400"
+                                        }`}
+                                      />
+                                      <div className="flex-1">
+                                        <p className="text-white text-sm">
+                                          {notif.message}
+                                        </p>
+                                        <p className="text-gray-400 text-xs mt-1">
+                                          {notif.time}
+                                        </p>
+
+                                        {/* Action Buttons */}
+                                        {notif.action && (
+                                          <div className="mt-2 flex gap-2">
+                                            {notif.action === "view-result" && (
+                                              <button
+                                                onClick={() => {
+                                                  setView("result");
+                                                  setShowNotifications(false);
+                                                }}
+                                                className="bg-blue-600 hover:bg-blue-700 text-white text-xs px-3 py-1.5 rounded transition"
+                                              >
+                                                View Result
+                                              </button>
+                                            )}
+                                            {notif.action === "resume-job" && (
+                                              <button
+                                                onClick={() => {
+                                                  setView("config");
+                                                  setShowNotifications(false);
+                                                }}
+                                                className="bg-yellow-600 hover:bg-yellow-700 text-white text-xs px-3 py-1.5 rounded transition flex items-center gap-1"
+                                              >
+                                                <FontAwesomeIcon
+                                                  icon={faSync}
+                                                />
+                                                Resume
+                                              </button>
+                                            )}
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
+                                ))
+                              )}
+                            </div>
+                          </div>
                         )}
                       </div>
                     </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          </header>
-
+                  </div>
+                </header>
 
                 {pdfList.length === 0 ? (
                   <div className="text-center py-16">
@@ -1423,7 +1067,10 @@ export default function Home() {
                               }}
                               className="text-red-400 hover:text-red-300 px-3 py-1 rounded transition"
                             >
-                              <FontAwesomeIcon icon={faTrash} className="mr-1" />
+                              <FontAwesomeIcon
+                                icon={faTrash}
+                                className="mr-1"
+                              />
                               Delete
                             </button>
                           </div>
@@ -1434,13 +1081,15 @@ export default function Home() {
                     {/* Pagination - Always show */}
                     <div className="mt-6 flex items-center justify-center gap-2">
                       <button
-                        onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                        onClick={() =>
+                          setCurrentPage((p) => Math.max(1, p - 1))
+                        }
                         disabled={currentPage === 1}
                         className="px-3 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition"
                       >
                         Previous
                       </button>
-                      
+
                       <div className="flex gap-1">
                         {[...Array(totalPages)].map((_, i) => (
                           <button
@@ -1458,7 +1107,9 @@ export default function Home() {
                       </div>
 
                       <button
-                        onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                        onClick={() =>
+                          setCurrentPage((p) => Math.min(totalPages, p + 1))
+                        }
                         disabled={currentPage === totalPages}
                         className="px-3 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition"
                       >
@@ -1493,7 +1144,7 @@ export default function Home() {
                         {selectedPDF.original_filename}
                       </p>
                     </div>
-                    
+
                     {/* Filter & Sort for Summary History */}
                     {summaryHistory.length > 0 && (
                       <div className="relative">
@@ -1519,13 +1170,17 @@ export default function Home() {
                               </label>
                               <select
                                 value={summarySortBy}
-                                onChange={(e) => setSummarySortBy(e.target.value)}
+                                onChange={(e) =>
+                                  setSummarySortBy(e.target.value)
+                                }
                                 className="w-full bg-gray-700 text-white px-3 py-2 rounded-lg border border-gray-600 focus:border-purple-500 focus:outline-none"
                               >
                                 <option value="latest">Latest First</option>
                                 <option value="oldest">Oldest First</option>
                                 <option value="mode">By Mode</option>
-                                <option value="processing-time">By Processing Time</option>
+                                <option value="processing-time">
+                                  By Processing Time
+                                </option>
                               </select>
                             </div>
 
@@ -1536,7 +1191,9 @@ export default function Home() {
                               </label>
                               <select
                                 value={summaryFilterMode}
-                                onChange={(e) => setSummaryFilterMode(e.target.value)}
+                                onChange={(e) =>
+                                  setSummaryFilterMode(e.target.value)
+                                }
                                 className="w-full bg-gray-700 text-white px-3 py-2 rounded-lg border border-gray-600 focus:border-purple-500 focus:outline-none"
                               >
                                 <option value="all">All Modes</option>
@@ -1553,11 +1210,15 @@ export default function Home() {
                               </label>
                               <select
                                 value={summaryFilterLanguage}
-                                onChange={(e) => setSummaryFilterLanguage(e.target.value)}
+                                onChange={(e) =>
+                                  setSummaryFilterLanguage(e.target.value)
+                                }
                                 className="w-full bg-gray-700 text-white px-3 py-2 rounded-lg border border-gray-600 focus:border-purple-500 focus:outline-none"
                               >
                                 <option value="all">All Languages</option>
-                                <option value="indonesian">🇮🇩 Indonesian</option>
+                                <option value="indonesian">
+                                  🇮🇩 Indonesian
+                                </option>
                                 <option value="english">🇬🇧 English</option>
                                 <option value="spanish">🇪🇸 Spanish</option>
                                 <option value="french">🇫🇷 French</option>
@@ -1572,7 +1233,9 @@ export default function Home() {
                               </label>
                               <select
                                 value={summaryFilterDate}
-                                onChange={(e) => setSummaryFilterDate(e.target.value)}
+                                onChange={(e) =>
+                                  setSummaryFilterDate(e.target.value)
+                                }
                                 className="w-full bg-gray-700 text-white px-3 py-2 rounded-lg border border-gray-600 focus:border-purple-500 focus:outline-none"
                               >
                                 <option value="all">All Time</option>
@@ -1686,7 +1349,10 @@ export default function Home() {
                                 onClick={() => handleViewSummary(item)}
                                 className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg text-sm transition"
                               >
-                                <FontAwesomeIcon icon={faEye} className="mr-1" />
+                                <FontAwesomeIcon
+                                  icon={faEye}
+                                  className="mr-1"
+                                />
                                 View
                               </button>
                               <button
@@ -1714,13 +1380,15 @@ export default function Home() {
                     {/* Pagination for Summary History - Always show */}
                     <div className="mt-6 flex items-center justify-center gap-2">
                       <button
-                        onClick={() => setSummaryPage((p) => Math.max(1, p - 1))}
+                        onClick={() =>
+                          setSummaryPage((p) => Math.max(1, p - 1))
+                        }
                         disabled={summaryPage === 1}
                         className="px-3 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition"
                       >
                         Previous
                       </button>
-                      
+
                       <div className="flex gap-1">
                         {[...Array(totalSummaryPages)].map((_, i) => (
                           <button
@@ -1738,7 +1406,11 @@ export default function Home() {
                       </div>
 
                       <button
-                        onClick={() => setSummaryPage((p) => Math.min(totalSummaryPages, p + 1))}
+                        onClick={() =>
+                          setSummaryPage((p) =>
+                            Math.min(totalSummaryPages, p + 1)
+                          )
+                        }
                         disabled={summaryPage === totalSummaryPages}
                         className="px-3 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition"
                       >
