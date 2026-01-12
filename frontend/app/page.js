@@ -40,7 +40,6 @@ import {
   exportToCSV as exportToCSVUtil,
 } from "../lib/utils";
 import {
-  filterAndSortPDFs,
   filterAndSortSummaries,
   paginate,
 } from "../lib/filters";
@@ -56,6 +55,7 @@ import MarkdownComponents from "../components/MarkdownComponents";
 export default function Home() {
   const [view, setView] = useState("library"); // library, upload, config, result, history, jobs, stats
   const [pdfList, setPdfList] = useState([]);
+  const [totalPDFs, setTotalPDFs] = useState(0);
   const [selectedPDF, setSelectedPDF] = useState(null);
   const [file, setFile] = useState(null);
   const [summaryHistory, setSummaryHistory] = useState([]);
@@ -81,6 +81,7 @@ export default function Home() {
   // Pagination states
   const [currentPage, setCurrentPage] = useState(1);
   const [summaryPage, setSummaryPage] = useState(1);
+  const [totalSummaries, setTotalSummaries] = useState(0);
 
   // Summary sort & filter states
   const [summarySortBy, setSummarySortBy] = useState("latest"); // latest, oldest, mode, processing-time
@@ -116,6 +117,11 @@ export default function Home() {
     loadStats();
   }, []);
 
+  // Reload PDFs when page or filters change
+  useEffect(() => {
+    loadPDFs();
+  }, [currentPage, searchQuery, sortBy, filterType, filterDate]);
+
   // Reset pagination when filters change
   useEffect(() => {
     setCurrentPage(1);
@@ -130,6 +136,19 @@ export default function Home() {
     summaryFilterDate,
     summaryFilterLanguage,
   ]);
+
+  // Reload summaries when page or filters change
+  useEffect(() => {
+    if (selectedPDF) {
+      loadSummariesForPDF();
+    }
+  }, [summaryPage, summarySortBy, summaryFilterMode, summaryFilterDate, summaryFilterLanguage]);
+
+  // Close dropdowns when view changes
+  useEffect(() => {
+    setShowFilters(false);
+    setShowNotifications(false);
+  }, [view]);
 
   // Click outside handler to close dropdowns
   useEffect(() => {
@@ -179,8 +198,17 @@ export default function Home() {
 
   const loadPDFs = async () => {
     try {
-      const result = await api.getPDFs();
+      // Build filters for API
+      const filters = {};
+      
+      if (searchQuery) filters.search = searchQuery;
+      if (sortBy) filters.sort = sortBy;
+      if (filterType && filterType !== "all") filters.type = filterType;
+      if (filterDate && filterDate !== "all") filters.date = filterDate;
+
+      const result = await api.getPDFs(currentPage, ITEMS_PER_PAGE, filters);
       setPdfList(result.data || []);
+      setTotalPDFs(result.pagination?.total || 0);
     } catch (err) {
       console.error("Failed to load PDFs:", err);
     }
@@ -192,6 +220,25 @@ export default function Home() {
       setStats(result.data || null);
     } catch (err) {
       console.error("Failed to load stats:", err);
+    }
+  };
+
+  const loadSummariesForPDF = async () => {
+    if (!selectedPDF) return;
+    
+    try {
+      const filters = {};
+      
+      if (summarySortBy) filters.sort = summarySortBy;
+      if (summaryFilterMode && summaryFilterMode !== "all") filters.mode = summaryFilterMode;
+      if (summaryFilterLanguage && summaryFilterLanguage !== "all") filters.language = summaryFilterLanguage;
+      if (summaryFilterDate && summaryFilterDate !== "all") filters.date = summaryFilterDate;
+
+      const result = await api.getSummaries(selectedPDF.id, summaryPage, ITEMS_PER_PAGE, filters);
+      setSummaryHistory(result.data || []);
+      setTotalSummaries(result.pagination?.total || 0);
+    } catch (err) {
+      console.error("Failed to load summaries:", err);
     }
   };
 
@@ -217,37 +264,15 @@ export default function Home() {
     setHasUnreadNotifications(true); // Mark as unread
   };
 
-  // Filter and sort PDFs using imported function
-  const filteredPDFs = filterAndSortPDFs(
-    pdfList,
-    searchQuery,
-    sortBy,
-    filterType,
-    filterDate
-  );
+  // PDFs are now loaded from API with server-side pagination
+  // No need for client-side filtering
+  const totalPages = Math.ceil(totalPDFs / ITEMS_PER_PAGE);
+  const paginatedPDFs = pdfList; // Already paginated from API
 
-  // Pagination for PDF list using imported function
-  const { items: paginatedPDFs, totalPages } = paginate(
-    filteredPDFs,
-    currentPage,
-    ITEMS_PER_PAGE
-  );
-
-  // Filter and sort summaries using imported function
-  const filteredSummaries = filterAndSortSummaries(
-    summaryHistory,
-    summarySortBy,
-    summaryFilterMode,
-    summaryFilterLanguage,
-    summaryFilterDate
-  );
-
-  // Pagination for summary history using imported function
-  const { items: paginatedSummaries, totalPages: totalSummaryPages } = paginate(
-    filteredSummaries,
-    summaryPage,
-    ITEMS_PER_PAGE
-  );
+  // Summaries are now loaded from API with server-side pagination
+  // No need for client-side filtering
+  const totalSummaryPages = Math.ceil(totalSummaries / ITEMS_PER_PAGE);
+  const paginatedSummaries = summaryHistory; // Already paginated from API
 
   const handleFileChange = (e) => {
     const selectedFile = e.target.files?.[0];
@@ -297,8 +322,10 @@ export default function Home() {
 
     // Load summary history for this PDF
     try {
-      const result = await api.getSummaries(pdf.id);
+      const filters = {};
+      const result = await api.getSummaries(pdf.id, 1, ITEMS_PER_PAGE, filters);
       setSummaryHistory(result.data || []);
+      setTotalSummaries(result.pagination?.total || 0);
 
       // Check if PDF has checkpoint
       try {
@@ -350,8 +377,7 @@ export default function Home() {
       await api.deleteSummary(summaryId);
       addNotification("Summary deleted successfully", "success");
       // Reload summary history
-      const result = await api.getSummaries(selectedPDF.id);
-      setSummaryHistory(result.data || []);
+      await loadSummariesForPDF();
     } catch (err) {
       setError(err.message);
       addNotification(`Failed to delete summary: ${err.message}`, "error");
@@ -413,8 +439,7 @@ export default function Home() {
 
               // Reload summary history
               try {
-                const historyResult = await api.getSummaries(selectedPDF.id);
-                setSummaryHistory(historyResult.data || []);
+                await loadSummariesForPDF();
               } catch (err) {
                 console.error("Failed to reload summary history:", err);
               }
@@ -732,7 +757,7 @@ export default function Home() {
                           id="filter-button"
                           onClick={() => {
                             setShowFilters(!showFilters);
-                            setShowNotifications(false); // Close notifications when opening filters
+                            setShowNotifications(false);
                           }}
                           className="relative p-2 text-gray-300 hover:text-white hover:bg-gray-700 rounded-lg transition"
                           title="Sort & Filter"
@@ -841,8 +866,8 @@ export default function Home() {
                               {/* Results Count */}
                               <div className="pt-3 border-t border-gray-700">
                                 <p className="text-gray-400 text-sm text-center">
-                                  Showing {filteredPDFs.length}{" "}
-                                  {filteredPDFs.length === 1 ? "file" : "files"}
+                                  Showing {totalPDFs}{" "}
+                                  {totalPDFs === 1 ? "file" : "files"}
                                 </p>
                               </div>
 
@@ -1006,7 +1031,7 @@ export default function Home() {
                       Upload PDF
                     </button>
                   </div>
-                ) : filteredPDFs.length === 0 ? (
+                ) : pdfList.length === 0 ? (
                   <div className="text-center py-16">
                     <FontAwesomeIcon
                       icon={faSearch}
@@ -1476,8 +1501,7 @@ export default function Home() {
                       // Reload summary history before going back
                       if (summaryHistory.length > 0) {
                         try {
-                          const result = await api.getSummaries(selectedPDF.id);
-                          setSummaryHistory(result.data || []);
+                          await loadSummariesForPDF();
                         } catch (err) {
                           console.error("Failed to reload summaries:", err);
                         }
@@ -1632,8 +1656,7 @@ export default function Home() {
                   onClick={async () => {
                     // Reload summary history before going back
                     try {
-                      const result = await api.getSummaries(selectedPDF.id);
-                      setSummaryHistory(result.data || []);
+                      await loadSummariesForPDF();
                     } catch (err) {
                       console.error("Failed to reload summaries:", err);
                     }

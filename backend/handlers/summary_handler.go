@@ -234,12 +234,73 @@ func getLanguage(lang *string) string {
 	return "english"
 }
 
-// ListSummaries returns list of summary history for a specific PDF
+// ListSummaries returns list of summary history for a specific PDF with pagination and filters
 func ListSummaries(c *fiber.Ctx) error {
 	pdfID := c.Params("id")
 
+	page, _ := strconv.Atoi(c.Query("page", "1"))
+	limit, _ := strconv.Atoi(c.Query("limit", "10"))
+	offset := (page - 1) * limit
+
+	// Get query parameters for filtering and sorting
+	sortBy := c.Query("sort", "latest")
+	filterMode := c.Query("mode", "all")
+	filterLanguage := c.Query("language", "all")
+	filterDate := c.Query("date", "all")
+
+	// Build query
+	query := database.DB.Model(&models.SummaryLog{}).Where("pdf_file_id = ?", pdfID)
+
+	// Apply mode filter
+	if filterMode != "all" {
+		query = query.Where("mode = ?", filterMode)
+	}
+
+	// Apply language filter
+	if filterLanguage != "all" {
+		query = query.Where("language = ?", filterLanguage)
+	}
+
+	// Apply date filter
+	if filterDate != "all" {
+		now := time.Now()
+		var startDate time.Time
+		
+		switch filterDate {
+		case "today":
+			startDate = now.AddDate(0, 0, -1)
+		case "week":
+			startDate = now.AddDate(0, 0, -7)
+		case "month":
+			startDate = now.AddDate(0, -1, 0)
+		}
+		
+		if filterDate != "all" {
+			query = query.Where("created_at >= ?", startDate)
+		}
+	}
+
+	// Get total count with filters
+	var totalCount int64
+	query.Count(&totalCount)
+
+	// Apply sorting
+	switch sortBy {
+	case "latest":
+		query = query.Order("created_at DESC")
+	case "oldest":
+		query = query.Order("created_at ASC")
+	case "mode":
+		query = query.Order("mode ASC, created_at DESC")
+	case "processing-time":
+		query = query.Order("processing_time DESC")
+	default:
+		query = query.Order("created_at DESC")
+	}
+
+	// Apply pagination
 	var summaries []models.SummaryLog
-	if err := database.DB.Where("pdf_file_id = ?", pdfID).Order("created_at DESC").Find(&summaries).Error; err != nil {
+	if err := query.Offset(offset).Limit(limit).Find(&summaries).Error; err != nil {
 		return utils.ErrorResponse(c, fiber.StatusInternalServerError, "Failed to fetch summaries")
 	}
 
@@ -262,7 +323,18 @@ func ListSummaries(c *fiber.Ctx) error {
 		})
 	}
 
-	return utils.SuccessResponse(c, fiber.StatusOK, "Summaries fetched successfully", responses)
+	// Return with pagination metadata
+	return c.JSON(fiber.Map{
+		"success": true,
+		"message": "Summaries fetched successfully",
+		"data":    responses,
+		"pagination": fiber.Map{
+			"page":        page,
+			"limit":       limit,
+			"total":       totalCount,
+			"total_pages": (totalCount + int64(limit) - 1) / int64(limit),
+		},
+	})
 }
 
 // GetSummary returns a specific summary from history

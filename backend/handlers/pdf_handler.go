@@ -9,6 +9,7 @@ import (
 	"pdf-summarizer-backend/utils"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gofiber/fiber/v2"
 )
@@ -63,7 +64,68 @@ func ListPDFs(c *fiber.Ctx) error {
 	limit, _ := strconv.Atoi(c.Query("limit", "100"))
 	offset := (page - 1) * limit
 
-	if err := database.DB.Order("upload_date DESC").Offset(offset).Limit(limit).Find(&pdfs).Error; err != nil {
+	// Get query parameters for filtering and sorting
+	search := c.Query("search", "")
+	sortBy := c.Query("sort", "latest")
+	filterType := c.Query("type", "all")
+	filterDate := c.Query("date", "all")
+
+	// Build query
+	query := database.DB.Model(&models.PDFFile{})
+
+	// Apply search filter
+	if search != "" {
+		query = query.Where("original_filename ILIKE ?", "%"+search+"%")
+	}
+
+	// Apply type filter (with/without summary)
+	if filterType == "with-summary" {
+		query = query.Where("summary_text IS NOT NULL AND summary_text != ''")
+	} else if filterType == "no-summary" {
+		query = query.Where("summary_text IS NULL OR summary_text = ''")
+	}
+
+	// Apply date filter
+	if filterDate != "all" {
+		now := time.Now()
+		var startDate time.Time
+		
+		switch filterDate {
+		case "today":
+			startDate = now.AddDate(0, 0, -1)
+		case "week":
+			startDate = now.AddDate(0, 0, -7)
+		case "month":
+			startDate = now.AddDate(0, -1, 0)
+		}
+		
+		if filterDate != "all" {
+			query = query.Where("upload_date >= ?", startDate)
+		}
+	}
+
+	// Get total count with filters
+	var totalCount int64
+	query.Count(&totalCount)
+
+	// Apply sorting
+	switch sortBy {
+	case "latest":
+		query = query.Order("upload_date DESC")
+	case "oldest":
+		query = query.Order("upload_date ASC")
+	case "name-asc":
+		query = query.Order("original_filename ASC")
+	case "name-desc":
+		query = query.Order("original_filename DESC")
+	case "size":
+		query = query.Order("file_size DESC")
+	default:
+		query = query.Order("upload_date DESC")
+	}
+
+	// Apply pagination
+	if err := query.Offset(offset).Limit(limit).Find(&pdfs).Error; err != nil {
 		return utils.ErrorResponse(c, fiber.StatusInternalServerError, "Failed to fetch PDFs")
 	}
 
@@ -96,7 +158,18 @@ func ListPDFs(c *fiber.Ctx) error {
 		})
 	}
 
-	return utils.SuccessResponse(c, fiber.StatusOK, "PDFs fetched successfully", responses)
+	// Return with pagination metadata
+	return c.JSON(fiber.Map{
+		"success": true,
+		"message": "PDFs fetched successfully",
+		"data":    responses,
+		"pagination": fiber.Map{
+			"page":        page,
+			"limit":       limit,
+			"total":       totalCount,
+			"total_pages": (totalCount + int64(limit) - 1) / int64(limit),
+		},
+	})
 }
 
 // GetPDF returns details of a specific PDF

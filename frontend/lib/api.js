@@ -6,8 +6,13 @@
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
 
 const api = {
-  async getPDFs() {
-    const response = await fetch(`${API_URL}/api/pdfs`);
+  async getPDFs(page = 1, limit = 5, filters = {}) {
+    const params = new URLSearchParams({
+      page: page.toString(),
+      limit: limit.toString(),
+      ...filters
+    });
+    const response = await fetch(`${API_URL}/api/pdfs?${params}`);
     if (!response.ok) throw new Error("Failed to fetch PDFs");
     return response.json();
   },
@@ -34,8 +39,13 @@ const api = {
     return response.json();
   },
 
-  async getSummaries(pdfId) {
-    const response = await fetch(`${API_URL}/api/pdfs/${pdfId}/summaries`);
+  async getSummaries(pdfId, page = 1, limit = 10, filters = {}) {
+    const params = new URLSearchParams({
+      page: page.toString(),
+      limit: limit.toString(),
+      ...filters
+    });
+    const response = await fetch(`${API_URL}/api/pdfs/${pdfId}/summaries?${params}`);
     if (!response.ok) throw new Error("Failed to fetch summaries");
     return response.json();
   },

@@ -117,22 +117,6 @@ services:
     networks:
       - pdf_network
 
-  # Frontend (Next.js)
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-    container_name: pdf_summarizer_frontend
-    restart: always
-    ports:
-      - "3000:3000"
-    environment:
-      - NEXT_PUBLIC_API_URL=http://localhost:8080
-    depends_on:
-      - backend
-    networks:
-      - pdf_network
-
 volumes:
   postgres_data:
   rabbitmq_data:
