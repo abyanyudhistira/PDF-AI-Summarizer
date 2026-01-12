@@ -242,6 +242,103 @@ export default function Home() {
     }
   };
 
+  const exportPDFsToJSON = async () => {
+    try {
+      // Get all PDFs with current filters (no pagination limit)
+      const filters = {};
+      if (searchQuery) filters.search = searchQuery;
+      if (sortBy) filters.sort = sortBy;
+      if (filterType && filterType !== "all") filters.type = filterType;
+      if (filterDate && filterDate !== "all") filters.date = filterDate;
+
+      const result = await api.getPDFs(1, 10000, filters); // Get all matching PDFs
+      const pdfs = result.data || [];
+
+      const exportData = {
+        exported_at: new Date().toISOString(),
+        total_pdfs: pdfs.length,
+        filters: {
+          search: searchQuery || "none",
+          sort: sortBy,
+          type: filterType,
+          date: filterDate,
+        },
+        pdfs: pdfs.map(pdf => ({
+          id: pdf.id,
+          filename: pdf.original_filename,
+          file_size_mb: pdf.file_size_mb,
+          total_pages: pdf.total_pages,
+          upload_date: pdf.upload_date,
+          summary_count: pdf.summary_count,
+          has_summary: pdf.summary_count > 0,
+        })),
+      };
+
+      const blob = new Blob([JSON.stringify(exportData, null, 2)], {
+        type: "application/json",
+      });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `pdf-library-${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+
+      addNotification(`✅ Exported ${pdfs.length} PDFs to JSON`, "success");
+    } catch (err) {
+      console.error("Failed to export PDFs to JSON:", err);
+      addNotification("❌ Failed to export to JSON", "error");
+    }
+  };
+
+  const exportPDFsToCSV = async () => {
+    try {
+      // Get all PDFs with current filters (no pagination limit)
+      const filters = {};
+      if (searchQuery) filters.search = searchQuery;
+      if (sortBy) filters.sort = sortBy;
+      if (filterType && filterType !== "all") filters.type = filterType;
+      if (filterDate && filterDate !== "all") filters.date = filterDate;
+
+      const result = await api.getPDFs(1, 10000, filters); // Get all matching PDFs
+      const pdfs = result.data || [];
+
+      let csvContent = "ID,Filename,File Size (MB),Total Pages,Upload Date,Summary Count,Has Summary\n";
+      
+      pdfs.forEach(pdf => {
+        const row = [
+          pdf.id,
+          `"${(pdf.original_filename || "").replace(/"/g, '""')}"`,
+          pdf.file_size_mb || 0,
+          pdf.total_pages || 0,
+          pdf.upload_date || "",
+          pdf.summary_count || 0,
+          pdf.summary_count > 0 ? "Yes" : "No",
+        ];
+        csvContent += row.join(",") + "\n";
+      });
+
+      const blob = new Blob([csvContent], {
+        type: "text/csv;charset=utf-8;",
+      });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `pdf-library-${new Date().toISOString().split('T')[0]}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+
+      addNotification(`✅ Exported ${pdfs.length} PDFs to CSV`, "success");
+    } catch (err) {
+      console.error("Failed to export PDFs to CSV:", err);
+      addNotification("❌ Failed to export to CSV", "error");
+    }
+  };
+
   const loadJobs = async (status = null) => {
     try {
       const filters = status && status !== "all" ? { status } : {};
@@ -723,10 +820,30 @@ export default function Home() {
             {/* Library View */}
             {view === "library" && (
               <div>
-                <div className="mb-6">
+                <div className="mb-6 flex items-center justify-between">
                   <h2 className="text-3xl font-bold text-white">
                     My PDF Library
                   </h2>
+                  
+                  {/* Export Buttons */}
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={exportPDFsToJSON}
+                      className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm transition flex items-center gap-2"
+                      title="Export filtered PDFs to JSON"
+                    >
+                      <FontAwesomeIcon icon={faDownload} />
+                      Export JSON
+                    </button>
+                    <button
+                      onClick={exportPDFsToCSV}
+                      className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm transition flex items-center gap-2"
+                      title="Export filtered PDFs to CSV"
+                    >
+                      <FontAwesomeIcon icon={faDownload} />
+                      Export CSV
+                    </button>
+                  </div>
                 </div>
 
                 <header className="border-gray-700 bg-gray-900 mb-6">
