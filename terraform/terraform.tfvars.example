@@ -1,0 +1,19 @@
+# Terraform Variables - Example Configuration
+# Copy file ini ke terraform.tfvars dan isi dengan nilai yang sesuai
+
+# AWS Configuration
+aws_region  = "ap-southeast-1" # Singapore
+environment = "dev"
+
+# Database Configuration
+db_username = "admin"
+db_password = "ChangeThisPassword123!" # GANTI dengan password yang kuat!
+
+# Secrets
+gemini_api_key = "your-gemini-api-key-here" # WAJIB DIISI!
+
+# Auto Scaling Configuration (Optional - sudah ada default)
+# backend_min_tasks = 1
+# backend_max_tasks = 4
+# ai_service_min_tasks = 1
+# ai_service_max_tasks = 3
