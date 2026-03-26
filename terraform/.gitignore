@@ -15,6 +15,11 @@ crash.*.log
 *.tfvars
 *.tfvars.json
 
+# Ignore plan files (contain sensitive data)
+*.tfplan
+tfplan
+tfplan.*
+
 # Ignore override files
 override.tf
 override.tf.json
