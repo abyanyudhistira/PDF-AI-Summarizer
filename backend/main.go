@@ -26,16 +26,33 @@ func main() {
 	// Run migrations
 	database.Migrate()
 
-	// Initialize MinIO
-	if err := storage.InitMinio(); err != nil {
-		log.Fatal("Failed to initialize MinIO:", err)
+	// Initialize Storage (MinIO or S3)
+	var storageClient storage.Storage
+	var err error
+	if config.AppConfig.UseAWS {
+		log.Println("🌩️  Using AWS S3 for storage")
+		storageClient, err = storage.NewS3Storage()
+	} else {
+		log.Println("📦 Using MinIO for storage (local)")
+		err = storage.InitMinio()
+	}
+	if err != nil {
+		log.Fatal("Failed to initialize storage:", err)
 	}
 
-	// Connect to RabbitMQ
-	if err := queue.Connect(); err != nil {
-		log.Fatal("Failed to connect to RabbitMQ:", err)
+	// Initialize Queue (RabbitMQ or SQS)
+	var queueClient queue.Queue
+	if config.AppConfig.UseAWS {
+		log.Println("🌩️  Using AWS SQS for queue")
+		queueClient, err = queue.NewSQSQueue()
+	} else {
+		log.Println("🐰 Using RabbitMQ for queue (local)")
+		err = queue.Connect()
+		defer queue.Close()
 	}
-	defer queue.Close()
+	if err != nil {
+		log.Fatal("Failed to initialize queue:", err)
+	}
 
 	// Start background workers
 	go worker.StartWorker()      // Job processor
@@ -106,7 +123,15 @@ func main() {
 	log.Printf("🚀 Server starting on port %s", port)
 	log.Printf("📊 Database: 4 tables (pdf_files, summary_logs, summarization_jobs, audit_logs)")
 	log.Printf("⚡ Trigger: Auto-update latest summary on pdf_files")
-	log.Printf("🐰 RabbitMQ: Connected and consuming jobs")
+	if config.AppConfig.UseAWS {
+		log.Printf("🌩️  AWS Mode: S3 + SQS")
+		log.Printf("   S3 Bucket: %s", config.AppConfig.S3Bucket)
+		log.Printf("   SQS Queue: %s", config.AppConfig.SQSQueueURL)
+	} else {
+		log.Printf("🐰 Local Mode: MinIO + RabbitMQ")
+		log.Printf("   MinIO: %s", config.AppConfig.MinioEndpoint)
+		log.Printf("   RabbitMQ: Connected")
+	}
 	log.Printf("🔄 Worker: Job processor running")
 	log.Printf("📝 Worker: Audit log processor running")
 	if err := app.Listen(":" + port); err != nil {

@@ -20,6 +20,14 @@ type Config struct {
 	AITimeout       int64  // AI service timeout in seconds
 	MaxFileSize     int64
 	UploadDir       string
+	
+	// AWS Configuration
+	AWSRegion       string
+	S3Bucket        string
+	SQSQueueURL     string
+	UseAWS          bool   // Flag untuk switch antara local (MinIO/RabbitMQ) dan AWS (S3/SQS)
+	
+	// Legacy - untuk local development
 	RabbitMQURL     string
 	MinioEndpoint   string
 	MinioAccessKey  string
@@ -39,6 +47,7 @@ func LoadConfig() {
 	maxFileSize, _ := strconv.ParseInt(getEnv("MAX_FILE_SIZE", "10485760"), 10, 64)
 	minioUseSSL, _ := strconv.ParseBool(getEnv("MINIO_USE_SSL", "false"))
 	aiTimeout, _ := strconv.ParseInt(getEnv("AI_TIMEOUT", "600"), 10, 64) // Default 10 minutes
+	useAWS, _ := strconv.ParseBool(getEnv("USE_AWS", "false")) // Default false untuk local dev
 
 	AppConfig = &Config{
 		Port:           getEnv("PORT", "8080"),
@@ -52,6 +61,14 @@ func LoadConfig() {
 		AITimeout:      aiTimeout,
 		MaxFileSize:    maxFileSize,
 		UploadDir:      getEnv("UPLOAD_DIR", "./uploads"),
+		
+		// AWS Configuration
+		AWSRegion:      getEnv("AWS_REGION", "us-east-1"),
+		S3Bucket:       getEnv("S3_BUCKET", ""),
+		SQSQueueURL:    getEnv("SQS_QUEUE_URL", ""),
+		UseAWS:         useAWS,
+		
+		// Legacy - untuk local development
 		RabbitMQURL:    getEnv("RABBITMQ_URL", "amqp://admin:admin123@localhost:5672/"),
 		MinioEndpoint:  getEnv("MINIO_ENDPOINT", "localhost:9000"),
 		MinioAccessKey: getEnv("MINIO_ACCESS_KEY", "admin"),
