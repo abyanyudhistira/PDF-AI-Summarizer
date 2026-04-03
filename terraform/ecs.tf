@@ -7,11 +7,13 @@ resource "aws_ecs_cluster" "main" {
 
   setting {
     name  = "containerInsights"
-    value = "enabled" # Enable CloudWatch Container Insights
+    value = "enabled"
   }
 
   tags = {
-    Name = "${var.project_name}-ecs-cluster"
+    Name        = "${var.project_name}-cluster"
+    Project     = var.project_name
+    Environment = var.environment
   }
 }
 
@@ -21,7 +23,10 @@ resource "aws_cloudwatch_log_group" "frontend" {
   retention_in_days = 7
 
   tags = {
-    Name = "${var.project_name}-frontend-logs"
+    Name        = "${var.project_name}-frontend-logs"
+    Project     = var.project_name
+    Environment = var.environment
+    Service     = "frontend"
   }
 }
 
@@ -30,7 +35,10 @@ resource "aws_cloudwatch_log_group" "backend" {
   retention_in_days = 7
 
   tags = {
-    Name = "${var.project_name}-backend-logs"
+    Name        = "${var.project_name}-backend-logs"
+    Project     = var.project_name
+    Environment = var.environment
+    Service     = "backend"
   }
 }
 
@@ -39,7 +47,10 @@ resource "aws_cloudwatch_log_group" "ai_service" {
   retention_in_days = 7
 
   tags = {
-    Name = "${var.project_name}-ai-service-logs"
+    Name        = "${var.project_name}-ai-service-logs"
+    Project     = var.project_name
+    Environment = var.environment
+    Service     = "ai-service"
   }
 }
 
@@ -86,7 +97,10 @@ resource "aws_ecs_task_definition" "frontend" {
   ])
 
   tags = {
-    Name = "${var.project_name}-frontend-task"
+    Name        = "${var.project_name}-frontend-task"
+    Project     = var.project_name
+    Environment = var.environment
+    Service     = "frontend"
   }
 }
 
@@ -176,7 +190,10 @@ resource "aws_ecs_task_definition" "backend" {
   ])
 
   tags = {
-    Name = "${var.project_name}-backend-task"
+    Name        = "${var.project_name}-backend-task"
+    Project     = var.project_name
+    Environment = var.environment
+    Service     = "backend"
   }
 }
 
@@ -223,11 +240,12 @@ resource "aws_ecs_task_definition" "ai_service" {
   ])
 
   tags = {
-    Name = "${var.project_name}-ai-service-task"
+    Name        = "${var.project_name}-ai-service-task"
+    Project     = var.project_name
+    Environment = var.environment
+    Service     = "ai-service"
   }
 }
-
-# Note: Service Discovery tidak tersedia di AWS Academy Lab
 # Backend akan akses AI Service via Load Balancer internal URL
 
 
@@ -254,7 +272,10 @@ resource "aws_ecs_service" "frontend" {
   depends_on = [aws_lb_listener.http]
 
   tags = {
-    Name = "${var.project_name}-frontend-service"
+    Name        = "${var.project_name}-frontend-service"
+    Project     = var.project_name
+    Environment = var.environment
+    ManagedBy   = "Terraform"
   }
 }
 
@@ -281,7 +302,10 @@ resource "aws_ecs_service" "backend" {
   depends_on = [aws_lb_listener.http]
 
   tags = {
-    Name = "${var.project_name}-backend-service"
+    Name        = "${var.project_name}-backend-service"
+    Project     = var.project_name
+    Environment = var.environment
+    ManagedBy   = "Terraform"
   }
 }
 
@@ -299,10 +323,10 @@ resource "aws_ecs_service" "ai_service" {
     assign_public_ip = false
   }
 
-  # Service Discovery tidak tersedia di AWS Academy
-  # Backend akan akses AI Service via ALB
-
   tags = {
-    Name = "${var.project_name}-ai-service"
+    Name        = "${var.project_name}-ai-service"
+    Project     = var.project_name
+    Environment = var.environment
+    ManagedBy   = "Terraform"
   }
 }

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strconv"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -18,13 +19,24 @@ type SQSQueue struct {
 	queueURL string
 }
 
-// JobMessage represents message structure untuk PDF processing job
-type JobMessage struct {
+// SQSJobMessage represents message structure for SQS
+type SQSJobMessage struct {
 	JobID      string `json:"job_id"`
 	FileID     string `json:"file_id"`
 	FileName   string `json:"file_name"`
 	S3Key      string `json:"s3_key"`
 	UploadedAt string `json:"uploaded_at"`
+}
+
+// ToJobMessage converts SQSJobMessage to JobMessage
+func (s *SQSJobMessage) ToJobMessage() (JobMessage, error) {
+	jobID, err := strconv.ParseUint(s.JobID, 10, 64)
+	if err != nil {
+		return JobMessage{}, fmt.Errorf("failed to parse job_id: %w", err)
+	}
+	return JobMessage{
+		JobID: uint(jobID),
+	}, nil
 }
 
 // NewSQSQueue creates new SQS queue client
@@ -51,24 +63,22 @@ func NewSQSQueue() (*SQSQueue, error) {
 
 // SendMessage sends job message to SQS queue
 func (q *SQSQueue) SendMessage(ctx context.Context, message JobMessage) error {
-	// Marshal message to JSON
-	body, err := json.Marshal(message)
+	sqsMsg := SQSJobMessage{
+		JobID: fmt.Sprintf("%d", message.JobID),
+	}
+
+	body, err := json.Marshal(sqsMsg)
 	if err != nil {
 		return fmt.Errorf("failed to marshal message: %w", err)
 	}
 
-	// Send to SQS
 	_, err = q.client.SendMessage(ctx, &sqs.SendMessageInput{
 		QueueUrl:    aws.String(q.queueURL),
 		MessageBody: aws.String(string(body)),
 		MessageAttributes: map[string]types.MessageAttributeValue{
 			"JobID": {
 				DataType:    aws.String("String"),
-				StringValue: aws.String(message.JobID),
-			},
-			"FileID": {
-				DataType:    aws.String("String"),
-				StringValue: aws.String(message.FileID),
+				StringValue: aws.String(fmt.Sprintf("%d", message.JobID)),
 			},
 		},
 	})
@@ -84,8 +94,8 @@ func (q *SQSQueue) ReceiveMessages(ctx context.Context, maxMessages int32) ([]Me
 	result, err := q.client.ReceiveMessage(ctx, &sqs.ReceiveMessageInput{
 		QueueUrl:            aws.String(q.queueURL),
 		MaxNumberOfMessages: maxMessages,
-		WaitTimeSeconds:     10, // Long polling
-		VisibilityTimeout:   900, // 15 minutes untuk processing
+		WaitTimeSeconds:     10,
+		VisibilityTimeout:   900,
 		MessageAttributeNames: []string{
 			"All",
 		},
@@ -96,17 +106,21 @@ func (q *SQSQueue) ReceiveMessages(ctx context.Context, maxMessages int32) ([]Me
 
 	messages := make([]Message, 0, len(result.Messages))
 	for _, msg := range result.Messages {
-		var jobMsg JobMessage
-		if err := json.Unmarshal([]byte(*msg.Body), &jobMsg); err != nil {
-			// Skip invalid messages
+		var sqsMsg SQSJobMessage
+		if err := json.Unmarshal([]byte(*msg.Body), &sqsMsg); err != nil {
+			continue
+		}
+
+		jobMsg, err := sqsMsg.ToJobMessage()
+		if err != nil {
 			continue
 		}
 
 		messages = append(messages, Message{
-			ID:             *msg.ReceiptHandle, // Use receipt handle as ID
-			Body:           jobMsg,
-			ReceiptHandle:  *msg.ReceiptHandle,
-			MessageID:      *msg.MessageId,
+			ID:            *msg.ReceiptHandle,
+			Body:          jobMsg,
+			ReceiptHandle: *msg.ReceiptHandle,
+			MessageID:     *msg.MessageId,
 		})
 	}
 

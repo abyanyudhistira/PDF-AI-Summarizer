@@ -9,11 +9,13 @@ resource "aws_lb" "main" {
   security_groups    = [aws_security_group.alb.id]
   subnets            = aws_subnet.public[*].id
 
-  enable_deletion_protection = false # Set true untuk production
+  enable_deletion_protection = false
   enable_http2               = true
 
   tags = {
-    Name = "${var.project_name}-alb"
+    Name        = "${var.project_name}-alb"
+    Project     = var.project_name
+    Environment = var.environment
   }
 }
 
@@ -40,7 +42,10 @@ resource "aws_lb_target_group" "frontend" {
   deregistration_delay = 30
 
   tags = {
-    Name = "${var.project_name}-frontend-tg"
+    Name        = "${var.project_name}-frontend-tg"
+    Project     = var.project_name
+    Environment = var.environment
+    Service     = "frontend"
   }
 }
 
@@ -67,7 +72,10 @@ resource "aws_lb_target_group" "backend" {
   deregistration_delay = 30
 
   tags = {
-    Name = "${var.project_name}-backend-tg"
+    Name        = "${var.project_name}-backend-tg"
+    Project     = var.project_name
+    Environment = var.environment
+    Service     = "backend"
   }
 }
 
@@ -91,10 +99,13 @@ resource "aws_lb_target_group" "ai_service" {
     unhealthy_threshold = 3
   }
 
-  deregistration_delay = 60 # Lebih lama untuk AI service
+  deregistration_delay = 60
 
   tags = {
-    Name = "${var.project_name}-ai-service-tg"
+    Name        = "${var.project_name}-ai-service-tg"
+    Project     = var.project_name
+    Environment = var.environment
+    Service     = "ai-service"
   }
 }
 

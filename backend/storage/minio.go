@@ -168,3 +168,54 @@ func GetPresignedURL(objectName string, expiry time.Duration) (string, error) {
 
 	return presignedURL.String(), nil
 }
+
+// MinioStorage implements Storage interface for MinIO
+type MinioStorage struct {
+	client     *minio.Client
+	bucketName string
+}
+
+func NewMinioStorage() (*MinioStorage, error) {
+	if err := InitMinio(); err != nil {
+		return nil, err
+	}
+	return &MinioStorage{
+		client:     MinioClient,
+		bucketName: config.AppConfig.MinioBucket,
+	}, nil
+}
+
+func (m *MinioStorage) UploadFile(ctx context.Context, objectName string, reader io.Reader, size int64) error {
+	_, err := m.client.PutObject(ctx, m.bucketName, objectName, reader, size, minio.PutObjectOptions{
+		ContentType: "application/pdf",
+	})
+	return err
+}
+
+func (m *MinioStorage) DownloadFile(ctx context.Context, objectName string) (io.ReadCloser, error) {
+	obj, err := m.client.GetObject(ctx, m.bucketName, objectName, minio.GetObjectOptions{})
+	if err != nil {
+		return nil, err
+	}
+	return obj, nil
+}
+
+func (m *MinioStorage) DeleteFile(ctx context.Context, objectName string) error {
+	return m.client.RemoveObject(ctx, m.bucketName, objectName, minio.RemoveObjectOptions{})
+}
+
+func (m *MinioStorage) GetPresignedURL(ctx context.Context, objectName string, expiry time.Duration) (string, error) {
+	presignedURL, err := m.client.PresignedGetObject(ctx, m.bucketName, objectName, expiry, nil)
+	if err != nil {
+		return "", err
+	}
+	return presignedURL.String(), nil
+}
+
+func (m *MinioStorage) FileExists(ctx context.Context, objectName string) (bool, error) {
+	_, err := m.client.StatObject(ctx, m.bucketName, objectName, minio.StatObjectOptions{})
+	if err != nil {
+		return false, nil
+	}
+	return true, nil
+}

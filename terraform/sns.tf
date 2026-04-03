@@ -6,7 +6,9 @@ resource "aws_sns_topic" "alerts" {
   name = "${var.project_name}-alerts-${var.environment}"
 
   tags = {
-    Name = "${var.project_name}-alerts-topic"
+    Name        = "${var.project_name}-alerts-topic"
+    Project     = var.project_name
+    Environment = var.environment
   }
 }
 
@@ -15,7 +17,9 @@ resource "aws_sns_topic" "job_notifications" {
   name = "${var.project_name}-job-notifications-${var.environment}"
 
   tags = {
-    Name = "${var.project_name}-job-notifications-topic"
+    Name        = "${var.project_name}-job-notifications-topic"
+    Project     = var.project_name
+    Environment = var.environment
   }
 }
 

@@ -1,5 +1,5 @@
 # PDF Summarizer - AWS Infrastructure
-# Infrastructure Automation untuk LKS COA
+# Infrastructure Automation
 
 terraform {
   required_version = ">= 1.0"
@@ -16,7 +16,7 @@ provider "aws" {
 
   default_tags {
     tags = {
-      Project     = "PDF-Summarizer"
+      Project     = var.project_name
       Environment = var.environment
       ManagedBy   = "Terraform"
     }

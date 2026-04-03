@@ -1,5 +1,5 @@
 # CloudWatch Monitoring & Alarms
-# Monitoring untuk semua services
+# Monitoring untuk semua service
 
 # CloudWatch Dashboard
 resource "aws_cloudwatch_dashboard" "main" {

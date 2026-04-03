@@ -1,6 +1,7 @@
 package queue
 
 import (
+	"context"
 	"encoding/json"
 	"log"
 	"pdf-summarizer-backend/config"
@@ -19,10 +20,10 @@ const (
 	ExchangeName    = "summarization"
 	RoutingKey      = "job.new"
 	DeadLetterQueue = "summarization_jobs_dlq"
-	
+
 	// Audit queue
-	AuditQueueName = "audit_logs"
-	AuditExchange  = "audit"
+	AuditQueueName  = "audit_logs"
+	AuditExchange   = "audit"
 	AuditRoutingKey = "audit.log"
 )
 
@@ -31,21 +32,30 @@ type JobMessage struct {
 	JobID uint `json:"job_id"`
 }
 
+// JobMessageSQS represents SQS job message
+type JobMessageSQS struct {
+	JobID      string `json:"job_id"`
+	FileID     string `json:"file_id"`
+	FileName   string `json:"file_name"`
+	S3Key      string `json:"s3_key"`
+	UploadedAt string `json:"uploaded_at"`
+}
+
 // Connect establishes connection to RabbitMQ with retry logic
 func Connect() error {
 	var err error
 	maxRetries := 10
 	retryDelay := 3 * time.Second
-	
+
 	log.Println("Connecting to RabbitMQ...")
-	
+
 	// Retry connection with exponential backoff
 	for i := 0; i < maxRetries; i++ {
 		Connection, err = amqp.Dial(config.AppConfig.RabbitMQURL)
 		if err == nil {
 			break
 		}
-		
+
 		if i < maxRetries-1 {
 			log.Printf("Failed to connect to RabbitMQ (attempt %d/%d): %v", i+1, maxRetries, err)
 			log.Printf("Retrying in %v...", retryDelay)
@@ -145,12 +155,12 @@ func Connect() error {
 	log.Println("RabbitMQ connected successfully")
 	log.Printf("Queue: %s", QueueName)
 	log.Printf("Dead Letter Queue: %s", DeadLetterQueue)
-	
+
 	// Setup audit queue
 	if err := setupAuditQueue(); err != nil {
 		return err
 	}
-	
+
 	return nil
 }
 
@@ -185,9 +195,9 @@ func setupAuditQueue() error {
 
 	// Bind queue to exchange
 	err = Channel.QueueBind(
-		AuditQueueName,   // queue name
-		AuditRoutingKey,  // routing key
-		AuditExchange,    // exchange
+		AuditQueueName,  // queue name
+		AuditRoutingKey, // routing key
+		AuditExchange,   // exchange
 		false,
 		nil,
 	)
@@ -265,4 +275,70 @@ func Close() {
 		Connection.Close()
 	}
 	log.Println("RabbitMQ connection closed")
+}
+
+// ConnectRabbitMQ establishes connection (alias for Connect)
+func ConnectRabbitMQ() error {
+	return Connect()
+}
+
+// GetRabbitMQChannel returns the channel for direct consumer
+func GetRabbitMQChannel() *amqp.Channel {
+	return Channel
+}
+
+// RabbitMQQueue implements Queue interface for RabbitMQ
+type RabbitMQQueue struct {
+	channel *amqp.Channel
+}
+
+func NewRabbitMQQueue() (*RabbitMQQueue, error) {
+	if err := Connect(); err != nil {
+		return nil, err
+	}
+	return &RabbitMQQueue{channel: Channel}, nil
+}
+
+func (q *RabbitMQQueue) SendMessage(ctx context.Context, message JobMessage) error {
+	return PublishJob(message.JobID)
+}
+
+func (q *RabbitMQQueue) ReceiveMessages(ctx context.Context, maxMessages int32) ([]Message, error) {
+	msgs, err := q.channel.Consume(
+		QueueName,
+		"",
+		false,
+		false,
+		false,
+		false,
+		nil,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	var result []Message
+	for i := int32(0); i < maxMessages; i++ {
+		select {
+		case msg := <-msgs:
+			var jobMsg JobMessage
+			if err := json.Unmarshal(msg.Body, &jobMsg); err != nil {
+				continue
+			}
+			result = append(result, Message{
+				ID:            string(msg.Body),
+				Body:          jobMsg,
+				ReceiptHandle: string(msg.Body),
+				MessageID:     msg.MessageId,
+			})
+		default:
+			break
+		}
+	}
+
+	return result, nil
+}
+
+func (q *RabbitMQQueue) DeleteMessage(ctx context.Context, receiptHandle string) error {
+	return nil
 }

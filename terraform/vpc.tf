@@ -8,7 +8,9 @@ resource "aws_vpc" "main" {
   enable_dns_support   = true
 
   tags = {
-    Name = "${var.project_name}-vpc"
+    Name        = "${var.project_name}-vpc"
+    Project     = var.project_name
+    Environment = var.environment
   }
 }
 
@@ -17,7 +19,9 @@ resource "aws_internet_gateway" "main" {
   vpc_id = aws_vpc.main.id
 
   tags = {
-    Name = "${var.project_name}-igw"
+    Name        = "${var.project_name}-igw"
+    Project     = var.project_name
+    Environment = var.environment
   }
 }
 
@@ -30,8 +34,10 @@ resource "aws_subnet" "public" {
   map_public_ip_on_launch = true
 
   tags = {
-    Name = "${var.project_name}-public-subnet-${count.index + 1}"
-    Type = "Public"
+    Name        = "${var.project_name}-public-subnet-${count.index + 1}"
+    Project     = var.project_name
+    Environment = var.environment
+    Type        = "Public"
   }
 }
 
@@ -43,8 +49,10 @@ resource "aws_subnet" "private" {
   availability_zone = data.aws_availability_zones.available.names[count.index]
 
   tags = {
-    Name = "${var.project_name}-private-subnet-${count.index + 1}"
-    Type = "Private"
+    Name        = "${var.project_name}-private-subnet-${count.index + 1}"
+    Project     = var.project_name
+    Environment = var.environment
+    Type        = "Private"
   }
 }
 
@@ -53,7 +61,9 @@ resource "aws_eip" "nat" {
   domain = "vpc"
 
   tags = {
-    Name = "${var.project_name}-nat-eip"
+    Name        = "${var.project_name}-nat-eip"
+    Project     = var.project_name
+    Environment = var.environment
   }
 }
 
@@ -62,7 +72,9 @@ resource "aws_nat_gateway" "main" {
   subnet_id     = aws_subnet.public[0].id
 
   tags = {
-    Name = "${var.project_name}-nat-gateway"
+    Name        = "${var.project_name}-nat-gateway"
+    Project     = var.project_name
+    Environment = var.environment
   }
 
   depends_on = [aws_internet_gateway.main]
@@ -78,7 +90,9 @@ resource "aws_route_table" "public" {
   }
 
   tags = {
-    Name = "${var.project_name}-public-rt"
+    Name        = "${var.project_name}-public-rt"
+    Project     = var.project_name
+    Environment = var.environment
   }
 }
 
@@ -98,7 +112,9 @@ resource "aws_route_table" "private" {
   }
 
   tags = {
-    Name = "${var.project_name}-private-rt"
+    Name        = "${var.project_name}-private-rt"
+    Project     = var.project_name
+    Environment = var.environment
   }
 }
 

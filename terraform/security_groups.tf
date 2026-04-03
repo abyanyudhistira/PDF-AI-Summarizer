@@ -6,7 +6,6 @@ resource "aws_security_group" "alb" {
   description = "Security group untuk Application Load Balancer"
   vpc_id      = aws_vpc.main.id
 
-  # Allow HTTP dari internet
   ingress {
     from_port   = 80
     to_port     = 80
@@ -15,7 +14,6 @@ resource "aws_security_group" "alb" {
     description = "Allow HTTP traffic"
   }
 
-  # Allow HTTPS dari internet
   ingress {
     from_port   = 443
     to_port     = 443
@@ -24,7 +22,6 @@ resource "aws_security_group" "alb" {
     description = "Allow HTTPS traffic"
   }
 
-  # Allow all outbound
   egress {
     from_port   = 0
     to_port     = 0
@@ -34,7 +31,9 @@ resource "aws_security_group" "alb" {
   }
 
   tags = {
-    Name = "${var.project_name}-alb-sg"
+    Name        = "${var.project_name}-alb-sg"
+    Project     = var.project_name
+    Environment = var.environment
   }
 }
 
@@ -44,7 +43,6 @@ resource "aws_security_group" "ecs_tasks" {
   description = "Security group untuk ECS tasks"
   vpc_id      = aws_vpc.main.id
 
-  # Allow traffic dari ALB
   ingress {
     from_port       = 0
     to_port         = 65535
@@ -53,7 +51,6 @@ resource "aws_security_group" "ecs_tasks" {
     description     = "Allow traffic from ALB"
   }
 
-  # Allow internal communication antar containers
   ingress {
     from_port   = 0
     to_port     = 65535
@@ -62,7 +59,6 @@ resource "aws_security_group" "ecs_tasks" {
     description = "Allow internal communication"
   }
 
-  # Allow all outbound
   egress {
     from_port   = 0
     to_port     = 0
@@ -72,7 +68,9 @@ resource "aws_security_group" "ecs_tasks" {
   }
 
   tags = {
-    Name = "${var.project_name}-ecs-tasks-sg"
+    Name        = "${var.project_name}-ecs-tasks-sg"
+    Project     = var.project_name
+    Environment = var.environment
   }
 }
 
@@ -82,7 +80,6 @@ resource "aws_security_group" "rds" {
   description = "Security group untuk RDS PostgreSQL"
   vpc_id      = aws_vpc.main.id
 
-  # Allow PostgreSQL dari ECS tasks only
   ingress {
     from_port       = 5432
     to_port         = 5432
@@ -91,7 +88,6 @@ resource "aws_security_group" "rds" {
     description     = "Allow PostgreSQL from ECS tasks"
   }
 
-  # Allow all outbound
   egress {
     from_port   = 0
     to_port     = 0
@@ -101,6 +97,8 @@ resource "aws_security_group" "rds" {
   }
 
   tags = {
-    Name = "${var.project_name}-rds-sg"
+    Name        = "${var.project_name}-rds-sg"
+    Project     = var.project_name
+    Environment = var.environment
   }
 }

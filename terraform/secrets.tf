@@ -7,7 +7,9 @@ resource "aws_secretsmanager_secret" "gemini_api_key" {
   description = "Google Gemini API Key untuk AI Service"
 
   tags = {
-    Name = "${var.project_name}-gemini-api-key"
+    Name        = "${var.project_name}-gemini-api-key"
+    Project     = var.project_name
+    Environment = var.environment
   }
 }
 
@@ -22,7 +24,9 @@ resource "aws_secretsmanager_secret" "db_credentials" {
   description = "Database credentials untuk RDS"
 
   tags = {
-    Name = "${var.project_name}-db-credentials"
+    Name        = "${var.project_name}-db-credentials"
+    Project     = var.project_name
+    Environment = var.environment
   }
 }
 

@@ -6,7 +6,9 @@ resource "aws_s3_bucket" "pdf_files" {
   bucket = "${var.project_name}-pdf-files-${var.environment}"
 
   tags = {
-    Name = "${var.project_name}-pdf-files"
+    Name        = "${var.project_name}-pdf-files"
+    Project     = var.project_name
+    Environment = var.environment
   }
 }
 

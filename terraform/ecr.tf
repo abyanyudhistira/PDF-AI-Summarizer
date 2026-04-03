@@ -7,11 +7,14 @@ resource "aws_ecr_repository" "frontend" {
   image_tag_mutability = "MUTABLE"
 
   image_scanning_configuration {
-    scan_on_push = true # Auto scan untuk vulnerabilities
+    scan_on_push = true
   }
 
   tags = {
-    Name = "${var.project_name}-frontend-repo"
+    Name        = "${var.project_name}-frontend-repo"
+    Project     = var.project_name
+    Environment = var.environment
+    Service     = "frontend"
   }
 }
 
@@ -25,7 +28,10 @@ resource "aws_ecr_repository" "backend" {
   }
 
   tags = {
-    Name = "${var.project_name}-backend-repo"
+    Name        = "${var.project_name}-backend-repo"
+    Project     = var.project_name
+    Environment = var.environment
+    Service     = "backend"
   }
 }
 
@@ -39,7 +45,10 @@ resource "aws_ecr_repository" "ai_service" {
   }
 
   tags = {
-    Name = "${var.project_name}-ai-service-repo"
+    Name        = "${var.project_name}-ai-service-repo"
+    Project     = var.project_name
+    Environment = var.environment
+    Service     = "ai-service"
   }
 }
 

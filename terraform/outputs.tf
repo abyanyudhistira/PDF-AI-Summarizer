@@ -7,12 +7,17 @@ output "vpc_id" {
 }
 
 output "alb_dns_name" {
-  description = "Load Balancer DNS Name - URL untuk akses aplikasi"
+  description = "Load Balancer DNS Name"
   value       = aws_lb.main.dns_name
 }
 
 output "alb_url" {
-  description = "Load Balancer URL"
+  description = "Load Balancer URL untuk akses aplikasi"
+  value       = "http://${aws_lb.main.dns_name}"
+}
+
+output "application_url" {
+  description = "URL untuk akses aplikasi"
   value       = "http://${aws_lb.main.dns_name}"
 }
 
@@ -36,6 +41,11 @@ output "rds_endpoint" {
   value       = aws_db_instance.postgres.endpoint
 }
 
+output "rds_multi_az" {
+  description = "Multi-AZ enabled"
+  value       = aws_db_instance.postgres.multi_az
+}
+
 output "s3_bucket_name" {
   description = "S3 Bucket Name untuk PDF files"
   value       = aws_s3_bucket.pdf_files.id
@@ -51,17 +61,22 @@ output "sqs_dlq_url" {
   value       = aws_sqs_queue.pdf_jobs_dlq.url
 }
 
-output "cloudwatch_dashboard_url" {
-  description = "CloudWatch Dashboard URL"
-  value       = "https://console.aws.amazon.com/cloudwatch/home?region=${var.aws_region}#dashboards:name=${aws_cloudwatch_dashboard.main.dashboard_name}"
-}
-
 output "ecs_cluster_name" {
   description = "ECS Cluster Name"
   value       = aws_ecs_cluster.main.name
 }
 
-output "sns_alerts_topic_arn" {
-  description = "SNS Topic ARN untuk alerts"
+output "ecs_cluster_url" {
+  description = "ECS Console URL"
+  value       = "https://console.aws.amazon.com/ecs/home?region=${var.aws_region}#/clusters/${aws_ecs_cluster.main.name}"
+}
+
+output "sns_topic_arn" {
+  description = "SNS Topic ARN untuk notifications"
   value       = aws_sns_topic.alerts.arn
+}
+
+output "waf_web_acl_id" {
+  description = "WAF Web ACL ID (empty for dev)"
+  value       = var.environment == "prod" ? aws_wafv2_web_acl.main[0].id : ""
 }

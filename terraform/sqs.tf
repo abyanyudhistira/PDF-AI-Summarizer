@@ -5,29 +5,32 @@
 resource "aws_sqs_queue" "pdf_jobs" {
   name                       = "${var.project_name}-pdf-jobs-${var.environment}"
   delay_seconds              = 0
-  max_message_size           = 262144  # 256 KB
-  message_retention_seconds  = 1209600 # 14 days
-  receive_wait_time_seconds  = 10      # Long polling
-  visibility_timeout_seconds = 900     # 15 minutes (untuk AI processing)
+  max_message_size           = 262144
+  message_retention_seconds  = 1209600
+  receive_wait_time_seconds  = 10
+  visibility_timeout_seconds = 900
 
-  # Dead Letter Queue configuration
   redrive_policy = jsonencode({
     deadLetterTargetArn = aws_sqs_queue.pdf_jobs_dlq.arn
-    maxReceiveCount     = 3 # Retry 3x sebelum masuk DLQ
+    maxReceiveCount     = 3
   })
 
   tags = {
-    Name = "${var.project_name}-pdf-jobs-queue"
+    Name        = "${var.project_name}-pdf-jobs-queue"
+    Project     = var.project_name
+    Environment = var.environment
   }
 }
 
 # Dead Letter Queue - untuk failed jobs
 resource "aws_sqs_queue" "pdf_jobs_dlq" {
   name                      = "${var.project_name}-pdf-jobs-dlq-${var.environment}"
-  message_retention_seconds = 1209600 # 14 days
+  message_retention_seconds = 1209600
 
   tags = {
-    Name = "${var.project_name}-pdf-jobs-dlq"
+    Name        = "${var.project_name}-pdf-jobs-dlq"
+    Project     = var.project_name
+    Environment = var.environment
   }
 }
 
@@ -36,12 +39,14 @@ resource "aws_sqs_queue" "audit_logs" {
   name                       = "${var.project_name}-audit-logs-${var.environment}"
   delay_seconds              = 0
   max_message_size           = 262144
-  message_retention_seconds  = 345600 # 4 days
+  message_retention_seconds  = 345600
   receive_wait_time_seconds  = 10
   visibility_timeout_seconds = 60
 
   tags = {
-    Name = "${var.project_name}-audit-logs-queue"
+    Name        = "${var.project_name}-audit-logs-queue"
+    Project     = var.project_name
+    Environment = var.environment
   }
 }
 

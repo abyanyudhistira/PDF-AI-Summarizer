@@ -15,14 +15,14 @@ variable "environment" {
 variable "project_name" {
   description = "Project name"
   type        = string
-  default     = "pdf-summarizer"
+  default     = "pdfsummarizer2"
 }
 
 # VPC Configuration
 variable "vpc_cidr" {
   description = "CIDR block untuk VPC"
   type        = string
-  default     = "10.0.0.0/16"
+  default     = "10.1.0.0/16"
 }
 
 # Database Configuration
@@ -35,7 +35,7 @@ variable "db_instance_class" {
 variable "db_name" {
   description = "Database name"
   type        = string
-  default     = "pdf_summarizer"
+  default     = "pdfsummarizer2"
 }
 
 variable "db_username" {
@@ -118,4 +118,11 @@ variable "gemini_api_key" {
   description = "Google Gemini API Key"
   type        = string
   sensitive   = true
+}
+
+# Domain Configuration
+variable "domain_name" {
+  description = "Domain name for the application"
+  type        = string
+  default     = "example.com"
 }
